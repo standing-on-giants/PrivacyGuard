@@ -29,4 +29,7 @@ public class Helper {
 
     @Column(name="contact_No", length = 100)
     private String contactNo;
+
+    @OneToOne(mappedBy = "helper", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private HelperAccount account;
 }

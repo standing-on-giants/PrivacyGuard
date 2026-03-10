@@ -33,4 +33,7 @@ public class Patient {
 
     @Column(name="pt_Address", length = 100)
     private String ptAddress;
+
+    @OneToOne(mappedBy = "patient", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private PatientAccount account;
 }

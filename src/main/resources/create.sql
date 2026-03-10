@@ -233,7 +233,7 @@ Create Table NurseAccount
 --19
 Create Table AdminAccount
 (
-    admin_Id Int,
+    admin_Id Int Primary Key,
     email Varchar(100),
     password Varchar(20)
 );

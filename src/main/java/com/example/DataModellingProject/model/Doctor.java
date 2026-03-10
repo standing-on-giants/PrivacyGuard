@@ -36,4 +36,7 @@ public class Doctor {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="office_No")
     private Room office;
+
+    @OneToOne(mappedBy = "doctor", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private DoctorAccount account;
 }

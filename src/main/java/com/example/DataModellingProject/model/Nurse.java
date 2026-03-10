@@ -29,4 +29,7 @@ public class Nurse {
 
     @Column(name="conatct_No", length = 100)
     private String contactNo;
+
+    @OneToOne(mappedBy = "nurse", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private NurseAccount account;
 }
