@@ -51,6 +51,7 @@ DataModellingProject/
 │       │       ├── repository/      # Spring Data JPA interfaces
 │       │       ├── service/         # Business logic and mapping execution
 │       │       ├── specification/   # Dynamic Criteria Builder logic for queries
+│       │       ├── security/        # Authenication and user session
 │       │       └── DataModellingProjectApplication.java
 │       └── resources/
 │           └── application.properties # Database and application settings
