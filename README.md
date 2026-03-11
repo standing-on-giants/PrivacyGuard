@@ -18,7 +18,10 @@ Create a new PostgreSQL database for the application. You can do this via pgAdmi
 ```sql
 CREATE DATABASE hospital_db;
 ```
-Then run the files `create.sql` and `insert.sql`
+Then run the files `src/main/resources/create.sql` and `src/main/resources/insert.sql`. You can use the following command:
+```bash
+psql -U <USER> -d postgres -f <FILE_PATH>
+```
 
 Next, open the `src/main/resources/application.properties` file and update the database credentials to match your local PostgreSQL setup:
 ```properties
