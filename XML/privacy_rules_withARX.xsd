@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+    
+    <!-- Root element -->
+    <xs:element name="PrivacyRules">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="OwnershipDefinitions" type="OwnershipDefinitionsType"/>
+                <xs:element name="RuleSets" type="RuleSetsType"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    
+    <!-- Ownership Definitions -->
+    <xs:complexType name="OwnershipDefinitionsType">
+        <xs:sequence>
+            <xs:element name="Ownership" type="OwnershipType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="OwnershipType">
+        <xs:attribute name="role" type="xs:string" use="required"/>
+        <xs:attribute name="attribute" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <!-- Rule Sets -->
+    <xs:complexType name="RuleSetsType">
+        <xs:sequence>
+            <xs:element name="RuleSet" type="RuleSetType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="RuleSetType">
+        <xs:sequence>
+            <xs:element name="TableRule" type="TableRuleType" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="role" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <!-- Table Rule -->
+    <xs:complexType name="TableRuleType">
+        <xs:sequence>
+            <xs:element name="RowFilter" type="RowFilterType" minOccurs="0"/>
+            <xs:element name="MaskColumns" type="MaskColumnsType" minOccurs="0"/>
+            <xs:element name="AllowOnlyColumns" type="AllowOnlyColumnsType" minOccurs="0"/>
+            <!-- NEW: Anonymization element -->
+            <xs:element name="Anonymization" type="AnonymizationType" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="table" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <!-- Row Filter -->
+    <xs:complexType name="RowFilterType">
+        <xs:choice minOccurs="0">
+            <xs:element name="Condition" type="ConditionType"/>
+        </xs:choice>
+        <xs:attribute name="ownership" type="xs:string" use="optional"/>
+    </xs:complexType>
+
+    <!-- Condition (supports both simple and complex) -->
+    <xs:complexType name="ConditionType" mixed="true">
+        <xs:sequence minOccurs="0">
+            <xs:element name="Logic" type="LogicType"/>
+        </xs:sequence>
+        <xs:attribute name="type" use="optional">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="simple"/>
+                    <xs:enumeration value="complex"/>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="ownership" type="xs:string" use="optional"/>
+    </xs:complexType>
+
+    <!-- Logic (AND/OR operators) -->
+    <xs:complexType name="LogicType">
+        <xs:sequence>
+            <xs:element name="Condition" type="ConditionType" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="operator" use="required">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="AND"/>
+                    <xs:enumeration value="OR"/>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:complexType>
+
+    <!-- Mask Columns -->
+    <xs:complexType name="MaskColumnsType">
+        <xs:sequence>
+            <xs:element name="Column" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- Allow Only Columns -->
+    <xs:complexType name="AllowOnlyColumnsType">
+        <xs:sequence>
+            <xs:element name="Column" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+
+    <!-- NEW SECTION: ARX Anonymization Support      -->
+    
+    <!-- Anonymization -->
+    <xs:complexType name="AnonymizationType">
+        <xs:sequence>
+            <xs:element name="Attribute" type="AttributeType" maxOccurs="unbounded"/>
+            <xs:element name="PrivacyModels" type="PrivacyModelsType"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- Attribute (column classification) -->
+    <xs:complexType name="AttributeType">
+        <xs:attribute name="column" type="xs:string" use="required"/>
+        <xs:attribute name="type" use="required">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="IDENTIFYING"/>
+                    <xs:enumeration value="QUASI_IDENTIFYING"/>
+                    <xs:enumeration value="SENSITIVE"/>
+                    <xs:enumeration value="INSENSITIVE"/>
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+    </xs:complexType>
+    
+    <!-- Privacy Models Container -->
+    <xs:complexType name="PrivacyModelsType">
+        <xs:sequence>
+            <xs:element name="KAnonymity" type="KAnonymityType" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="LDiversity" type="LDiversityType" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="TCloseness" type="TClosenessType" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- K-Anonymity Model -->
+    <xs:complexType name="KAnonymityType">
+        <xs:attribute name="k" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+    
+    <!-- L-Diversity Model -->
+    <xs:complexType name="LDiversityType">
+        <xs:attribute name="column" type="xs:string" use="required"/>
+        <xs:attribute name="l" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+    
+    <!-- T-Closeness Model -->
+    <xs:complexType name="TClosenessType">
+        <xs:attribute name="column" type="xs:string" use="required"/>
+        <xs:attribute name="t" type="xs:decimal" use="required"/>
+    </xs:complexType>
+    
+</xs:schema>
