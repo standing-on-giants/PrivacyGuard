@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PrivacyRules xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="privacy_rules_withARX.xsd">
+
+    <OwnershipDefinitions>
+        <Ownership role="doctor" attribute="doct_id"/>
+        <Ownership role="nurse" attribute="nurse_id"/>
+        <Ownership role="helper" attribute="helper_id"/>
+    </OwnershipDefinitions>
+
+    <RuleSets>
+        <RuleSet role="doctor">
+            <TableRule table="Appointment">
+                <RowFilter ownership="doctor"/>
+
+                <Anonymization>
+                    <Attribute column="patient_name" type="IDENTIFYING"/>
+                    <Attribute column="payment_amount" type="QUASI_IDENTIFYING"/>
+                    <Attribute column="mode_of_payment" type="QUASI_IDENTIFYING"/>
+
+                    <PrivacyModels>
+                        <KAnonymity k="2"/>
+                    </PrivacyModels>
+                </Anonymization>
+            </TableRule>
+        </RuleSet>
+
+        <RuleSet role="nurse">
+            <TableRule table="Patients">
+                <RowFilter ownership="nurse"/>
+
+                <Anonymization>
+                    <Attribute column="pt_Name" type="IDENTIFYING"/>
+
+                    <Attribute column="pt_Address" type="QUASI_IDENTIFYING"/>
+                    <Attribute column="zip_code" type="QUASI_IDENTIFYING"/>
+                    <Attribute column="birth_date" type="QUASI_IDENTIFYING"/>
+
+                    <Attribute column="diagnosis" type="SENSITIVE"/>
+
+                    <PrivacyModels>
+                        <KAnonymity k="5"/>
+                        <LDiversity column="diagnosis" l="3"/>
+                    </PrivacyModels>
+                </Anonymization>
+            </TableRule>
+        </RuleSet>
+
+        <RuleSet role="helper">
+            <TableRule table="BedRecords">
+                <RowFilter ownership="helper"/>
+
+                <Anonymization>
+                    <Attribute column="patient_id" type="IDENTIFYING"/>
+                    <Attribute column="amount" type="SENSITIVE"/>
+                    <Attribute column="diagnosis" type="SENSITIVE"/>
+                    <Attribute column="ward_location" type="QUASI_IDENTIFYING"/>
+
+                    <PrivacyModels>
+                        <KAnonymity k="10"/>
+                        <LDiversity column="diagnosis" l="4"/>
+                        <TCloseness column="amount" t="0.2"/>
+                    </PrivacyModels>
+                </Anonymization>
+            </TableRule>
+        </RuleSet>
+    </RuleSets>
+</PrivacyRules>

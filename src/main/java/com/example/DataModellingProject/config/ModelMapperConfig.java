@@ -14,28 +14,7 @@ public class ModelMapperConfig {
     @Bean
     public ModelMapper modelMapper() {
         ModelMapper modelMapper = new ModelMapper();
-
         modelMapper.getConfiguration().setMatchingStrategy(MatchingStrategies.STRICT);
-
-        Converter<Patient, String> patientToName = ctx -> {
-            Patient p = ctx.getSource();
-            return p == null ? null : p.getFName() + " " + p.getLName();
-        };
-
-        Converter<Doctor, String> doctorToName = ctx -> {
-            Doctor d = ctx.getSource();
-            return d == null ? null : d.getFName() + " " + d.getLName();
-        };
-
-        Converter<Nurse, String> nurseToName = ctx -> {
-            Nurse n = ctx.getSource();
-            return n == null ? null : n.getFName() + " " + n.getLName();
-        };
-
-        Converter<Helper, String> helperToName = ctx -> {
-            Helper h = ctx.getSource();
-            return h == null ? null : h.getFName() + " " + h.getLName();
-        };
 
         Converter<Department, String> deptToName = ctx -> {
             Department d = ctx.getSource();
@@ -46,8 +25,6 @@ public class ModelMapperConfig {
             Room r = ctx.getSource();
             return r == null ? null : r.getRoomNo();
         };
-
-        // --- 3. Attach Converters to Specific DTOs ---
 
         // Master Data Mappings
         modelMapper.typeMap(Nurse.class, NurseSearchResponse.class).addMappings(mapper -> {
@@ -64,35 +41,50 @@ public class ModelMapperConfig {
         });
 
         modelMapper.typeMap(MedicalRecord.class, MedicalRecordSearchResponse.class).addMappings(mapper -> {
-            mapper.using(patientToName).map(MedicalRecord::getPatient, MedicalRecordSearchResponse::setPatientName);
-            mapper.using(doctorToName).map(MedicalRecord::getDoctor, MedicalRecordSearchResponse::setDoctorName);
+            mapper.map(src -> src.getPatient().getFName(), MedicalRecordSearchResponse::setPatientFirstName);
+            mapper.map(src -> src.getPatient().getLName(), MedicalRecordSearchResponse::setPatientLastName);
+            mapper.map(src -> src.getDoctor().getFName(), MedicalRecordSearchResponse::setDoctorFirstName);
+            mapper.map(src -> src.getDoctor().getLName(), MedicalRecordSearchResponse::setDoctorLastName);
         });
 
         modelMapper.typeMap(SurgeryRecord.class, SurgeryRecordSearchResponse.class).addMappings(mapper -> {
-            mapper.using(patientToName).map(SurgeryRecord::getPatient, SurgeryRecordSearchResponse::setPatientName);
-            mapper.using(doctorToName).map(SurgeryRecord::getSurgeon, SurgeryRecordSearchResponse::setSurgeonName);
+            mapper.map(src -> src.getPatient().getFName(), SurgeryRecordSearchResponse::setPatientFirstName);
+            mapper.map(src -> src.getPatient().getLName(), SurgeryRecordSearchResponse::setPatientLastName);
+            mapper.map(src -> src.getSurgeon().getFName(), SurgeryRecordSearchResponse::setSurgeonFirstName);
+            mapper.map(src -> src.getSurgeon().getLName(), SurgeryRecordSearchResponse::setSurgeonLastName);
             mapper.using(roomToNo).map(SurgeryRecord::getRoom, SurgeryRecordSearchResponse::setRoomNo);
         });
 
         modelMapper.typeMap(Appointment.class, AppointmentSearchResponse.class).addMappings(mapper -> {
-            mapper.using(patientToName).map(Appointment::getPatient, AppointmentSearchResponse::setPatientName);
-            mapper.using(doctorToName).map(Appointment::getDoctor, AppointmentSearchResponse::setDoctorName);
+            mapper.map(src -> src.getPatient().getFName(), AppointmentSearchResponse::setPatientFirstName);
+            mapper.map(src -> src.getPatient().getLName(), AppointmentSearchResponse::setPatientLastName);
+            mapper.map(src -> src.getDoctor().getFName(), AppointmentSearchResponse::setDoctorFirstName);
+            mapper.map(src -> src.getDoctor().getLName(), AppointmentSearchResponse::setDoctorLastName);
         });
 
         modelMapper.typeMap(StaffShift.class, StaffShiftSearchResponse.class).addMappings(mapper -> {
-            mapper.using(doctorToName).map(StaffShift::getDoctor, StaffShiftSearchResponse::setDoctorName);
-            mapper.using(nurseToName).map(StaffShift::getNurse, StaffShiftSearchResponse::setNurseName);
-            mapper.using(helperToName).map(StaffShift::getHelper, StaffShiftSearchResponse::setHelperName);
+            mapper.map(src -> src.getDoctor().getFName(), StaffShiftSearchResponse::setDoctorFirstName);
+            mapper.map(src -> src.getDoctor().getLName(), StaffShiftSearchResponse::setDoctorLastName);
+            mapper.map(src -> src.getNurse().getFName(), StaffShiftSearchResponse::setNurseFirstName);
+            mapper.map(src -> src.getNurse().getLName(), StaffShiftSearchResponse::setNurseLastName);
+            mapper.map(src -> src.getHelper().getFName(), StaffShiftSearchResponse::setHelperFirstName);
+            mapper.map(src -> src.getHelper().getLName(), StaffShiftSearchResponse::setHelperLastName);
         });
 
         modelMapper.typeMap(BedRecord.class, BedRecordSearchResponse.class).addMappings(mapper -> {
-            mapper.using(patientToName).map(BedRecord::getPatient, BedRecordSearchResponse::setPatientName);
-            mapper.using(nurseToName).map(BedRecord::getNurse, BedRecordSearchResponse::setNurseName);
+            mapper.map(src -> src.getPatient().getFName(), BedRecordSearchResponse::setPatientFirstName);
+            mapper.map(src -> src.getPatient().getLName(), BedRecordSearchResponse::setPatientLastName);
+            mapper.map(src -> src.getNurse().getFName(), BedRecordSearchResponse::setNurseFirstName);
+            mapper.map(src -> src.getNurse().getLName(), BedRecordSearchResponse::setNurseLastName);
+            mapper.map(src -> src.getNurse().getFName(), BedRecordSearchResponse::setHelperFirstName);
+            mapper.map(src -> src.getNurse().getLName(), BedRecordSearchResponse::setHelperLastName);
         });
 
         modelMapper.typeMap(RoomRecord.class, RoomRecordSearchResponse.class).addMappings(mapper -> {
-            mapper.using(patientToName).map(RoomRecord::getPatient, RoomRecordSearchResponse::setPatientName);
-            mapper.using(nurseToName).map(RoomRecord::getNurse, RoomRecordSearchResponse::setNurseName);
+            mapper.map(src -> src.getPatient().getFName(), RoomRecordSearchResponse::setPatientFirstName);
+            mapper.map(src -> src.getPatient().getLName(), RoomRecordSearchResponse::setPatientLastName);
+            mapper.map(src -> src.getNurse().getFName(), RoomRecordSearchResponse::setNurseFirstName);
+            mapper.map(src -> src.getNurse().getLName(), RoomRecordSearchResponse::setNurseLastName);
             mapper.using(roomToNo).map(RoomRecord::getRoom, RoomRecordSearchResponse::setRoomNo);
         });
 

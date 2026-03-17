@@ -84,6 +84,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+            <version>3.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.deidentifier.arx</groupId>
+            <artifactId>arx</artifactId>
+            <version>3.9.2</version> <scope>system</scope>
+            <systemPath>${project.basedir}/lib/libarx-3.9.2.jar</systemPath>
+        </dependency>
 	</dependencies>
 
 	<build>
