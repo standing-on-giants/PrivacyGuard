@@ -14,10 +14,6 @@ cd DataModellingProject
 ```
 
 ### 2. Database Configuration
-Create a new PostgreSQL database for the application. You can do this via pgAdmin or the psql command line:
-```sql
-CREATE DATABASE hospital_db;
-```
 Then run the files `src/main/resources/create.sql` and `src/main/resources/insert.sql`. You can use the following command:
 ```bash
 psql -U <USER> -d postgres -f <FILE_PATH>
@@ -25,7 +21,7 @@ psql -U <USER> -d postgres -f <FILE_PATH>
 
 Next, open the `src/main/resources/application.properties` file and update the database credentials to match your local PostgreSQL setup:
 ```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/hospital_db
+spring.datasource.url=jdbc:postgresql://localhost:5432/hospitalmanagementsystem
 spring.datasource.username=your_postgres_username
 spring.datasource.password=your_postgres_password
 ```
