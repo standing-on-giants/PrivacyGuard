@@ -47,12 +47,12 @@ public class PrivacyAspect {
                 .replace("ROLE_", "")
                 .toLowerCase();
 
-        // 3. Extract the actual payload, whether it's wrapped in a ResponseEntity or not!
+        // 3. Extract the actual payload
         Object bodyToMask = null;
         if (result instanceof ResponseEntity) {
             bodyToMask = ((ResponseEntity<?>) result).getBody();
         } else {
-            bodyToMask = result; // It's just a raw object or list
+            bodyToMask = result; 
         }
 
         // 4. Apply the Privacy Rules to the payload
@@ -82,15 +82,10 @@ public class PrivacyAspect {
             }
         }
 
-        // 5. Return the result. Because Java passes objects by reference,
-        // modifying 'bodyToMask' automatically modifies the data inside 'result'!
+        // 5. Return the result
         return result;
     }
 
-    /**
-     * Determines the class name (Table Name) of the object we are returning.
-     * If it's a List, it peeks at the first item to get its class.
-     */
     private String getTableNameFromBody(Object body) {
         Object itemToCheck = body;
 
@@ -102,22 +97,19 @@ public class PrivacyAspect {
             itemToCheck = collection.iterator().next();
         }
 
-        // 1. Check if the class has our custom @PrivacyTable annotation
         com.example.DataModellingProject.privacy.annotation.PrivacyTable annotation =
                 itemToCheck.getClass().getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyTable.class);
 
         if (annotation != null) {
-            // If it has the annotation, use the name provided in it (e.g., "Appointment")
             return annotation.value();
         }
 
-        // 2. If no annotation is found, fall back to the raw class name (e.g., "Patient")
         return itemToCheck.getClass().getSimpleName();
     }
 
     /**
-     * Applies simple column masking (e.g. changing strings to "***")
-     * based on the TableRule passed in.
+     * Applies simple column masking based on the TableRule.
+     * UPDATED: Now respects the @PrivacyField annotation for correct mapping.
      */
     private void maskObject(Object item, TableRule rule) {
         if (item == null || rule.getMaskColumns().isEmpty()) return;
@@ -126,7 +118,21 @@ public class PrivacyAspect {
         Field[] fields = item.getClass().getDeclaredFields();
 
         for (Field field : fields) {
-            if (columnsToMask.stream().anyMatch(c -> c.equalsIgnoreCase(field.getName()))) {
+            // Default to the actual Java field name
+            String effectiveColumnName = field.getName();
+
+            // Check if the field is annotated with @PrivacyField
+            com.example.DataModellingProject.privacy.annotation.PrivacyField privacyField = 
+                    field.getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyField.class);
+            
+            // Override default if a specific DB column was provided
+            if (privacyField != null && !privacyField.column().isEmpty()) {
+                effectiveColumnName = privacyField.column();
+            }
+
+            final String finalColNameToMatch = effectiveColumnName;
+
+            if (columnsToMask.stream().anyMatch(c -> c.equalsIgnoreCase(finalColNameToMatch))) {
                 try {
                     field.setAccessible(true);
                     if (field.getType().equals(String.class)) {

@@ -10,15 +10,36 @@ import java.time.LocalDate;
 @Setter
 @PrivacyTable("BedRecord")
 public class BedRecordSearchResponse {
+    @PrivacyField(table = "BedRecord", column = "admission_Id")
     private Integer admissionId;
+    
+    @PrivacyField(table = "BedRecord", column = "admission_Date")
     private LocalDate admissionDate;
+    
+    @PrivacyField(table = "BedRecord", column = "discharge_Date")
     private LocalDate dischargeDate;
+    
+    @PrivacyField(table = "BedRecord", column = "amount")
     private Integer amount;
+    
+    @PrivacyField(table = "Bed", column = "bed_No")
     private Integer bedNo;
+    
+    @PrivacyField(table = "Patient", column = "FName")
     private String patientFirstName;
+    
+    @PrivacyField(table = "Patient", column = "LName")
     private String patientLastName;
+    
+    @PrivacyField(table = "Nurse", column = "FName")
     private String nurseFirstName;
+    
+    @PrivacyField(table = "Nurse", column = "LName")
     private String nurseLastName;
+    
+    @PrivacyField(table = "Helper", column = "FName")
     private String helperFirstName;
+    
+    @PrivacyField(table = "Helper", column = "LName")
     private String helperLastName;
 }

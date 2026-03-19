@@ -15,6 +15,28 @@ import java.util.List;
 @Service
 public class ArxService {
 
+    /**
+     * Helper to resolve the database column name from a Java field.
+     * Checks for @PrivacyField (DTOs), then @Column (Entities), then defaults to field name.
+     */
+    private String getEffectiveColumnName(Field field) {
+        // 1. Check for custom @PrivacyField
+        com.example.DataModellingProject.privacy.annotation.PrivacyField privacyField = 
+                field.getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyField.class);
+        if (privacyField != null && privacyField.column() != null && !privacyField.column().isEmpty()) {
+            return privacyField.column();
+        }
+
+        // 2. Check for JPA @Column
+        jakarta.persistence.Column columnAnnotation = field.getAnnotation(jakarta.persistence.Column.class);
+        if (columnAnnotation != null && columnAnnotation.name() != null && !columnAnnotation.name().isEmpty()) {
+            return columnAnnotation.name();
+        }
+
+        // 3. Fallback to raw Java field name
+        return field.getName();
+    }
+
     public void applyArxAnonymization(Collection<?> items, TableRule rule) throws Exception {
         if (items == null || items.isEmpty() || rule.getAnonymization() == null) return;
 
@@ -26,14 +48,14 @@ public class ArxService {
         // 1. Initialize ARX Data Structure
         Data.DefaultData data = Data.create();
 
-        // Add Headers
+        // Add Headers mapped to true Database Columns to match XML
         String[] headers = new String[fields.length];
         for (int i = 0; i < fields.length; i++) {
-            headers[i] = fields[i].getName();
+            headers[i] = getEffectiveColumnName(fields[i]);
         }
         data.add(headers);
 
-        // Add Rows (Convert Java objects to String arrays)
+        // Add Rows
         for (Object item : itemList) {
             String[] row = new String[fields.length];
             for (int i = 0; i < fields.length; i++) {
@@ -44,7 +66,7 @@ public class ArxService {
             data.add(row);
         }
 
-        // 2. Configure Attribute Types (IDENTIFYING, SENSITIVE, etc.)
+        // 2. Configure Attribute Types based on mapped XML columns
         for (int i = 0; i < headers.length; i++) {
             String colName = headers[i];
             String type = anonRule.getAttributes().getOrDefault(colName, "INSENSITIVE");
@@ -57,20 +79,19 @@ public class ArxService {
                     data.getDefinition().setAttributeType(colName, AttributeType.SENSITIVE_ATTRIBUTE);
                     break;
                 case "QUASI_IDENTIFYING":
-                    // 1. Gather all unique values currently in this column
                     java.util.Set<String> uniqueValues = new java.util.HashSet<>();
+                    // Access field safely by index rather than string name
+                    Field targetField = fields[i];
                     for (Object item : itemList) {
                         try {
-                            java.lang.reflect.Field field = item.getClass().getDeclaredField(colName);
-                            field.setAccessible(true);
-                            Object val = field.get(item);
+                            targetField.setAccessible(true);
+                            Object val = targetField.get(item);
                             uniqueValues.add(val != null ? val.toString() : "");
                         } catch (Exception e) {
                             uniqueValues.add("");
                         }
                     }
 
-                    // 2. Build the programmatic hierarchy and assign it to the column
                     AttributeType.Hierarchy dynamicHierarchy = ArxHierarchyUtil.createRedactionHierarchy(uniqueValues);
                     data.getDefinition().setAttributeType(colName, dynamicHierarchy);
                     break;
@@ -79,23 +100,24 @@ public class ArxService {
             }
         }
         
-        // 3. Configure Privacy Models (K-Anonymity, L-Diversity, T-Closeness)
+        // 3. Configure Privacy Models
         ARXConfiguration config = ARXConfiguration.create();
-        config.setSuppressionLimit(1d); // Allow up to 100% suppression if the rules are extremely strict
+        config.setSuppressionLimit(1d); 
 
-        // Add K-Anonymity
         if (anonRule.getKAnonymity() != null) {
             config.addPrivacyModel(new KAnonymity(anonRule.getKAnonymity()));
         }
 
-        // Add Distinct L-Diversity
-        for (AnonymizationRule.LDiversity lDiv : anonRule.getLDiversities()) {
-            config.addPrivacyModel(new org.deidentifier.arx.criteria.DistinctLDiversity(lDiv.getColumn(), lDiv.getL()));
+        if (anonRule.getLDiversities() != null) {
+            for (AnonymizationRule.LDiversity lDiv : anonRule.getLDiversities()) {
+                config.addPrivacyModel(new org.deidentifier.arx.criteria.DistinctLDiversity(lDiv.getColumn(), lDiv.getL()));
+            }
         }
 
-        // Add Equal Distance T-Closeness
-        for (AnonymizationRule.TCloseness tClose : anonRule.getTClosenesses()) {
-            config.addPrivacyModel(new org.deidentifier.arx.criteria.EqualDistanceTCloseness(tClose.getColumn(), tClose.getT()));
+        if (anonRule.getTClosenesses() != null) {
+            for (AnonymizationRule.TCloseness tClose : anonRule.getTClosenesses()) {
+                config.addPrivacyModel(new org.deidentifier.arx.criteria.EqualDistanceTCloseness(tClose.getColumn(), tClose.getT()));
+            }
         }
 
         // 4. Run the Anonymizer
@@ -114,11 +136,23 @@ public class ArxService {
         for (Object item : itemList) {
             String[] safeRow = iterator.next();
             for (int i = 0; i < fields.length; i++) {
-                fields[i].setAccessible(true);
-                // Only overwrite Strings for simplicity in this example.
-                // You would need type-casting logic here for Integers, Dates, etc.
-                if (fields[i].getType().equals(String.class)) {
-                    fields[i].set(item, safeRow[i]);
+                Field field = fields[i];
+                field.setAccessible(true);
+                
+                String safeValue = safeRow[i];
+                
+                // If ARX suppressed the value, it outputs "*". We map that to null for non-strings.
+                boolean isSuppressed = (safeValue == null || safeValue.equals("*") || safeValue.isEmpty());
+
+                // Safe parsing to prevent crashes, covering Strings, Integers, Dates, and Times
+                if (field.getType().equals(String.class)) {
+                    field.set(item, safeValue);
+                } else if (field.getType().equals(Integer.class)) {
+                    field.set(item, isSuppressed ? null : Integer.valueOf(safeValue));
+                } else if (field.getType().equals(java.time.LocalDate.class)) {
+                    field.set(item, isSuppressed ? null : java.time.LocalDate.parse(safeValue));
+                } else if (field.getType().equals(java.time.LocalTime.class)) {
+                    field.set(item, isSuppressed ? null : java.time.LocalTime.parse(safeValue));
                 }
             }
         }
