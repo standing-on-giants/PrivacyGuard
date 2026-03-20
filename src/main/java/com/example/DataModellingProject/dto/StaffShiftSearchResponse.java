@@ -11,33 +11,34 @@ import java.time.LocalTime;
 @Setter
 @PrivacyTable("StaffShift")
 public class StaffShiftSearchResponse {
-    @PrivacyField(table = "StaffShift", column = "shift_Id")
+
+    @PrivacyField(column = "shift_Id")
     private Integer shiftId;
-    
-    @PrivacyField(table = "StaffShift", column = "shift_Date")
+
+    @PrivacyField(column = "shift_Date")
     private LocalDate shiftDate;
-    
-    @PrivacyField(table = "StaffShift", column = "shift_Start")
+
+    @PrivacyField(column = "shift_Start")
     private LocalTime shiftStart;
-    
-    @PrivacyField(table = "StaffShift", column = "shift_End")
+
+    @PrivacyField(column = "shift_End")
     private LocalTime shiftEnd;
-    
+
     @PrivacyField(table = "Doctor", column = "FName")
     private String doctorFirstName;
-    
+
     @PrivacyField(table = "Doctor", column = "LName")
     private String doctorLastName;
-    
+
     @PrivacyField(table = "Nurse", column = "FName")
     private String nurseFirstName;
-    
+
     @PrivacyField(table = "Nurse", column = "LName")
     private String nurseLastName;
-    
+
     @PrivacyField(table = "Helper", column = "FName")
     private String helperFirstName;
-    
+
     @PrivacyField(table = "Helper", column = "LName")
     private String helperLastName;
 }

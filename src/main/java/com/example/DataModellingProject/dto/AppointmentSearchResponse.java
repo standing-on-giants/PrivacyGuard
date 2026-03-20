@@ -8,23 +8,35 @@ import java.time.LocalDate;
 
 @Getter
 @Setter
-@PrivacyTable("Appointment")
+@PrivacyTable("Appointment") // Default table for this DTO
 public class AppointmentSearchResponse {
+
+    @PrivacyField(column = "appointment_Id")
     private Integer appointmentId;
+
+    @PrivacyField(column = "appointment_Date")
     private LocalDate appointmentDate;
+
+    @PrivacyField(column = "mode_of_appointment")
     private String modeOfAppointment;
+
+    @PrivacyField(column = "appointment_status")
     private String appointmentStatus;
-    
-    // Explicitly mapping Java fields to the DB table/columns used in your XML rules
-    @PrivacyField(table = "patients", column = "firstname")
+
+    @PrivacyField(column = "payment_amount")
+    private String paymentAmount;
+
+    // Explicitly overrides to use "Patient" table
+    @PrivacyField(table = "Patient", column = "FName")
     private String patientFirstName;
-    
-    @PrivacyField(table = "patients", column = "lastname")
+
+    @PrivacyField(table = "Patient", column = "LName")
     private String patientLastName;
-    
-    @PrivacyField(table = "doctors", column = "firstname")
+
+    // Explicitly overrides to use "Doctor" table
+    @PrivacyField(table = "Doctor", column = "FName")
     private String doctorFirstName;
-    
-    @PrivacyField(table = "doctors", column = "lastname")
+
+    @PrivacyField(table = "Doctor", column = "LName")
     private String doctorLastName;
 }

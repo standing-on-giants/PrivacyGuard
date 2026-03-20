@@ -2,21 +2,27 @@
 <PrivacyRules xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="privacy_rules_withARX.xsd">
 
     <OwnershipDefinitions>
-        <Ownership role="doctor" attribute="doct_id"/>
-        <Ownership role="nurse" attribute="nurse_id"/>
-        <Ownership role="helper" attribute="helper_id"/>
+        <Ownership role="doctor" attribute="doct_Id"/>
+        <Ownership role="nurse" attribute="nurse_Id"/>
+        <Ownership role="helper" attribute="helper_Id"/>
     </OwnershipDefinitions>
 
     <RuleSets>
         <RuleSet role="doctor">
+            <TableRule table="MedicalRecord">
+                <RowFilter ownership="doctor"/>
+            </TableRule>
+
+            <TableRule table="Patient">
+                <RowFilter ownership="doctor"/>
+            </TableRule>
+
             <TableRule table="Appointment">
                 <RowFilter ownership="doctor"/>
-                
                 <Anonymization>
-                    <Attribute column="patient_name" type="IDENTIFYING"/> 
                     <Attribute column="payment_amount" type="IDENTIFYING"/>
-                    <Attribute column="mode_of_payment" type="IDENTIFYING"/>
-                    
+                    <Attribute column="mode_of_payment" type="QUASI_IDENTIFYING"/>
+                    <Attribute column="mode_of_appointment" type="QUASI_IDENTIFYING"/>
                     <PrivacyModels>
                         <KAnonymity k="2"/>
                     </PrivacyModels>
@@ -25,43 +31,126 @@
         </RuleSet>
 
         <RuleSet role="nurse">
-            <TableRule table="Patients">
+            <TableRule table="Patient">
                 <RowFilter ownership="nurse"/>
-                
                 <Anonymization>
-                    <Attribute column="pt_Name" type="IDENTIFYING"/>
-                    
+                    <Attribute column="FName" type="IDENTIFYING"/>
+                    <Attribute column="LName" type="IDENTIFYING"/>
                     <Attribute column="pt_Address" type="QUASI_IDENTIFYING"/>
-                    <Attribute column="zip_code" type="QUASI_IDENTIFYING"/>
-                    <Attribute column="birth_date" type="QUASI_IDENTIFYING"/>
+                    <Attribute column="Date_Of_Birth" type="QUASI_IDENTIFYING"/>
+                    <PrivacyModels>
+                        <KAnonymity k="5"/>
+                    </PrivacyModels>
+                </Anonymization>
+            </TableRule>
+
+            <TableRule table="MedicalRecord">
+                <RowFilter ownership="nurse"/>
+                <Anonymization>
+                    <Attribute column="visit_Date" type="QUASI_IDENTIFYING"/>
 
                     <Attribute column="diagnosis" type="SENSITIVE"/>
 
                     <PrivacyModels>
-                        <KAnonymity k="5"/>
+                        <KAnonymity k="3"/>
                         <LDiversity column="diagnosis" l="3"/>
                     </PrivacyModels>
                 </Anonymization>
             </TableRule>
+
+            <TableRule table="BedRecord">
+                <RowFilter ownership="nurse"/>
+                <MaskColumns>
+                    <Column>mode_of_payment</Column>
+                    <Column>amount</Column>
+                </MaskColumns>
+            </TableRule>
+
+            <TableRule table="RoomRecord">
+                <RowFilter ownership="nurse"/>
+                <MaskColumns>
+                    <Column>mode_of_payment</Column>
+                    <Column>amount</Column>
+                </MaskColumns>
+            </TableRule>
+
+            <TableRule table="SurgeryRecord">
+                <RowFilter>
+                    <Condition type="complex">
+                        <Logic operator="AND">
+                            <Condition ownership="nurse"/>
+                            <Condition>SurgeryRecord.surgery_Date = CURRENT_DATE</Condition>
+                        </Logic>
+                    </Condition>
+                </RowFilter>
+            </TableRule>
+
+            <TableRule table="StaffShift">
+                <RowFilter ownership="nurse"/>
+            </TableRule>
+
+            <TableRule table="Room">
+                <RowFilter ownership="nurse"/>
+            </TableRule>
+
+            <TableRule table="Ward">
+                <RowFilter ownership="nurse"/>
+            </TableRule>
+
+            <TableRule table="Bed">
+                <RowFilter ownership="nurse"/>
+            </TableRule>
         </RuleSet>
 
         <RuleSet role="helper">
-            <TableRule table="BedRecords">
+            <TableRule table="BedRecord">
                 <RowFilter ownership="helper"/>
-                
                 <Anonymization>
-                    <Attribute column="patient_id" type="IDENTIFYING"/>
+                    <Attribute column="patient_Id" type="IDENTIFYING"/>
+                    <Attribute column="bed_No" type="QUASI_IDENTIFYING"/>
                     <Attribute column="amount" type="SENSITIVE"/>
-                    <Attribute column="diagnosis" type="SENSITIVE"/>
-                    <Attribute column="ward_location" type="QUASI_IDENTIFYING"/>
-
                     <PrivacyModels>
                         <KAnonymity k="10"/>
-                        <LDiversity column="diagnosis" l="4"/>
                         <TCloseness column="amount" t="0.2"/>
                     </PrivacyModels>
                 </Anonymization>
             </TableRule>
+
+            <TableRule table="RoomRecord">
+                <RowFilter ownership="helper"/>
+                <MaskColumns>
+                    <Column>mode_of_payment</Column>
+                    <Column>amount</Column>
+                </MaskColumns>
+            </TableRule>
+
+            <TableRule table="SurgeryRecord">
+                <RowFilter>
+                    <Condition type="complex">
+                        <Logic operator="AND">
+                            <Condition ownership="helper"/>
+                            <Condition>SurgeryRecord.surgery_Date = CURRENT_DATE</Condition>
+                        </Logic>
+                    </Condition>
+                </RowFilter>
+            </TableRule>
+
+            <TableRule table="StaffShift">
+                <RowFilter ownership="helper"/>
+            </TableRule>
+
+            <TableRule table="Room">
+                <RowFilter ownership="helper"/>
+            </TableRule>
+
+            <TableRule table="Ward">
+                <RowFilter ownership="helper"/>
+            </TableRule>
+
+            <TableRule table="Bed">
+                <RowFilter ownership="helper"/>
+            </TableRule>
         </RuleSet>
     </RuleSets>
+
 </PrivacyRules>

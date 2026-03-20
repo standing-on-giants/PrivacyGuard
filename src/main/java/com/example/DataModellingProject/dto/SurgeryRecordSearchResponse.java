@@ -11,33 +11,34 @@ import java.time.LocalTime;
 @Setter
 @PrivacyTable("SurgeryRecord")
 public class SurgeryRecordSearchResponse {
-    @PrivacyField(table = "SurgeryRecord", column = "surgery_Id")
+
+    @PrivacyField(column = "surgery_Id")
     private Integer surgeryId;
-    
-    @PrivacyField(table = "SurgeryRecord", column = "surgery_Type")
+
+    @PrivacyField(column = "surgery_Type")
     private String surgeryType;
-    
-    @PrivacyField(table = "SurgeryRecord", column = "surgery_Date")
+
+    @PrivacyField(column = "surgery_Date")
     private LocalDate surgeryDate;
-    
-    @PrivacyField(table = "SurgeryRecord", column = "start_Time")
+
+    @PrivacyField(column = "start_Time")
     private LocalTime startTime;
-    
-    @PrivacyField(table = "SurgeryRecord", column = "end_Time")
+
+    @PrivacyField(column = "end_Time")
     private LocalTime endTime;
-    
+
     @PrivacyField(table = "Patient", column = "FName")
     private String patientFirstName;
-    
+
     @PrivacyField(table = "Patient", column = "LName")
     private String patientLastName;
-    
+
     @PrivacyField(table = "Doctor", column = "FName")
     private String surgeonFirstName;
-    
+
     @PrivacyField(table = "Doctor", column = "LName")
     private String surgeonLastName;
-    
+
     @PrivacyField(table = "Room", column = "room_No")
     private Integer roomNo;
 }

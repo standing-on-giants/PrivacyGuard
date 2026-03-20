@@ -9,27 +9,28 @@ import lombok.Setter;
 @Setter
 @PrivacyTable("Doctor")
 public class DoctorSearchResponse {
-    @PrivacyField(table = "Doctor", column = "doct_Id")
+
+    @PrivacyField(column = "doct_Id")
     private Integer doctId;
-    
-    @PrivacyField(table = "Doctor", column = "FName")
+
+    @PrivacyField(column = "FName")
     private String fName;
-    
-    @PrivacyField(table = "Doctor", column = "LName")
+
+    @PrivacyField(column = "LName")
     private String lName;
-    
-    @PrivacyField(table = "Doctor", column = "Gender")
+
+    @PrivacyField(column = "Gender")
     private String gender;
-    
-    @PrivacyField(table = "Doctor", column = "contact_No")
+
+    @PrivacyField(column = "contact_No")
     private String contactNo;
-    
-    @PrivacyField(table = "Doctor", column = "surgeon_Type")
+
+    @PrivacyField(column = "surgeon_Type")
     private String surgeonType;
-    
+
     @PrivacyField(table = "Department", column = "dept_Name")
     private String deptName;
-    
+
     @PrivacyField(table = "Room", column = "room_No")
     private Integer roomNo;
 }

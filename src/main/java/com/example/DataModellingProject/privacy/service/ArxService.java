@@ -4,58 +4,99 @@ import com.example.DataModellingProject.privacy.model.AnonymizationRule;
 import com.example.DataModellingProject.privacy.model.TableRule;
 import org.deidentifier.arx.*;
 import org.deidentifier.arx.criteria.KAnonymity;
+import org.deidentifier.arx.criteria.PrivacyCriterion;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
 @Service
 public class ArxService {
 
-    /**
-     * Helper to resolve the database column name from a Java field.
-     * Checks for @PrivacyField (DTOs), then @Column (Entities), then defaults to field name.
-     */
-    private String getEffectiveColumnName(Field field) {
-        // 1. Check for custom @PrivacyField
-        com.example.DataModellingProject.privacy.annotation.PrivacyField privacyField = 
-                field.getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyField.class);
-        if (privacyField != null && privacyField.column() != null && !privacyField.column().isEmpty()) {
-            return privacyField.column();
-        }
+    private final PrivacyService privacyService;
 
-        // 2. Check for JPA @Column
-        jakarta.persistence.Column columnAnnotation = field.getAnnotation(jakarta.persistence.Column.class);
-        if (columnAnnotation != null && columnAnnotation.name() != null && !columnAnnotation.name().isEmpty()) {
-            return columnAnnotation.name();
-        }
-
-        // 3. Fallback to raw Java field name
-        return field.getName();
+    public ArxService(@Lazy PrivacyService privacyService) {
+        this.privacyService = privacyService;
     }
 
-    public void applyArxAnonymization(Collection<?> items, TableRule rule) throws Exception {
-        if (items == null || items.isEmpty() || rule.getAnonymization() == null) return;
+    public void applyArxAnonymization(Collection<?> items, String role, String primaryTableName) throws Exception {
+        if (items == null || items.isEmpty()) return;
 
-        AnonymizationRule anonRule = rule.getAnonymization();
+        TableRule primaryRule = privacyService.getTableRule(role, primaryTableName);
+        if (primaryRule == null || primaryRule.getAnonymization() == null) return;
+
         List<Object> itemList = new ArrayList<>(items);
         Class<?> clazz = itemList.get(0).getClass();
         Field[] fields = clazz.getDeclaredFields();
 
-        // 1. Initialize ARX Data Structure
         Data.DefaultData data = Data.create();
 
-        // Add Headers mapped to true Database Columns to match XML
-        String[] headers = new String[fields.length];
-        for (int i = 0; i < fields.length; i++) {
-            headers[i] = getEffectiveColumnName(fields[i]);
-        }
-        data.add(headers);
+        // Track dynamic cross-table privacy models
+        int globalMaxK = primaryRule.getAnonymization().getKAnonymity() != null ? primaryRule.getAnonymization().getKAnonymity() : 0;
+        List<PrivacyCriterion> dynamicColumnModels = new ArrayList<>();
 
-        // Add Rows
+        String[] arxUniqueHeaders = new String[fields.length];
+        String[] columnTypes = new String[fields.length];
+
+        // 1. Setup Headers, Types, and DYNAMIC PRIVACY MODELS
+        for (int i = 0; i < fields.length; i++) {
+            Field field = fields[i];
+
+            String targetTable = primaryTableName;
+            String targetColumn = field.getName().replaceAll("([a-z])([A-Z]+)", "$1_$2").toLowerCase();
+
+            com.example.DataModellingProject.privacy.annotation.PrivacyField privacyField =
+                    field.getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyField.class);
+
+            if (privacyField != null) {
+                if (!privacyField.table().isEmpty()) targetTable = privacyField.table();
+                if (!privacyField.column().isEmpty()) targetColumn = privacyField.column();
+            }
+
+            String uniqueArxHeader = targetTable + "_" + targetColumn;
+            arxUniqueHeaders[i] = uniqueArxHeader;
+
+            TableRule specificTableRule = privacyService.getTableRule(role, targetTable);
+            String type = "INSENSITIVE";
+
+            if (specificTableRule != null && specificTableRule.getAnonymization() != null) {
+                AnonymizationRule specificAnon = specificTableRule.getAnonymization();
+                type = specificAnon.getAttributes().getOrDefault(targetColumn, "INSENSITIVE");
+
+                // --- DYNAMIC MATH AGGREGATOR ---
+
+                // A. Find the strictest K-Anonymity
+                if (specificAnon.getKAnonymity() != null) {
+                    globalMaxK = Math.max(globalMaxK, specificAnon.getKAnonymity());
+                }
+
+                // B. Attach L-Diversity for this specific cross-table column
+                if (specificAnon.getLDiversities() != null) {
+                    for (AnonymizationRule.LDiversity lDiv : specificAnon.getLDiversities()) {
+                        if (lDiv.getColumn().equalsIgnoreCase(targetColumn)) {
+                            dynamicColumnModels.add(new org.deidentifier.arx.criteria.DistinctLDiversity(uniqueArxHeader, lDiv.getL()));
+                        }
+                    }
+                }
+
+                // C. Attach T-Closeness for this specific cross-table column
+                if (specificAnon.getTClosenesses() != null) {
+                    for (AnonymizationRule.TCloseness tClose : specificAnon.getTClosenesses()) {
+                        if (tClose.getColumn().equalsIgnoreCase(targetColumn)) {
+                            dynamicColumnModels.add(new org.deidentifier.arx.criteria.EqualDistanceTCloseness(uniqueArxHeader, tClose.getT()));
+                        }
+                    }
+                }
+            }
+            columnTypes[i] = type;
+        }
+
+        data.add(arxUniqueHeaders);
+
+        // 2. Add Rows
         for (Object item : itemList) {
             String[] row = new String[fields.length];
             for (int i = 0; i < fields.length; i++) {
@@ -66,21 +107,20 @@ public class ArxService {
             data.add(row);
         }
 
-        // 2. Configure Attribute Types based on mapped XML columns
-        for (int i = 0; i < headers.length; i++) {
-            String colName = headers[i];
-            String type = anonRule.getAttributes().getOrDefault(colName, "INSENSITIVE");
+        // 3. Configure Attribute Types
+        for (int i = 0; i < arxUniqueHeaders.length; i++) {
+            String uniqueColName = arxUniqueHeaders[i];
+            String type = columnTypes[i];
 
-            switch (type.toUpperCase()) {
+            switch (type.toUpperCase().trim()) {
                 case "IDENTIFYING":
-                    data.getDefinition().setAttributeType(colName, AttributeType.IDENTIFYING_ATTRIBUTE);
+                    data.getDefinition().setAttributeType(uniqueColName, AttributeType.IDENTIFYING_ATTRIBUTE);
                     break;
                 case "SENSITIVE":
-                    data.getDefinition().setAttributeType(colName, AttributeType.SENSITIVE_ATTRIBUTE);
+                    data.getDefinition().setAttributeType(uniqueColName, AttributeType.SENSITIVE_ATTRIBUTE);
                     break;
                 case "QUASI_IDENTIFYING":
                     java.util.Set<String> uniqueValues = new java.util.HashSet<>();
-                    // Access field safely by index rather than string name
                     Field targetField = fields[i];
                     for (Object item : itemList) {
                         try {
@@ -92,35 +132,44 @@ public class ArxService {
                         }
                     }
 
-                    AttributeType.Hierarchy dynamicHierarchy = ArxHierarchyUtil.createRedactionHierarchy(uniqueValues);
-                    data.getDefinition().setAttributeType(colName, dynamicHierarchy);
+                    String[][] hierarchyData = new String[uniqueValues.size()][2];
+                    int index = 0;
+                    for (String val : uniqueValues) {
+                        hierarchyData[index][0] = val;
+                        hierarchyData[index][1] = "*";
+                        index++;
+                    }
+
+                    AttributeType.Hierarchy explicitHierarchy = AttributeType.Hierarchy.create(hierarchyData);
+                    data.getDefinition().setAttributeType(uniqueColName, explicitHierarchy);
                     break;
                 default:
-                    data.getDefinition().setAttributeType(colName, AttributeType.INSENSITIVE_ATTRIBUTE);
+                    data.getDefinition().setAttributeType(uniqueColName, AttributeType.INSENSITIVE_ATTRIBUTE);
             }
         }
-        
-        // 3. Configure Privacy Models
+
+        // 4. Configure Privacy Models (Using Aggregated Math)
         ARXConfiguration config = ARXConfiguration.create();
-        config.setSuppressionLimit(1d); 
+        config.setSuppressionLimit(1d);
 
-        if (anonRule.getKAnonymity() != null) {
-            config.addPrivacyModel(new KAnonymity(anonRule.getKAnonymity()));
+        // Apply strictest global K
+        if (globalMaxK > 0) {
+            config.addPrivacyModel(new KAnonymity(globalMaxK));
         }
 
-        if (anonRule.getLDiversities() != null) {
-            for (AnonymizationRule.LDiversity lDiv : anonRule.getLDiversities()) {
-                config.addPrivacyModel(new org.deidentifier.arx.criteria.DistinctLDiversity(lDiv.getColumn(), lDiv.getL()));
-            }
+        // Apply dynamically collected cross-table models
+        for (PrivacyCriterion criterion : dynamicColumnModels) {
+            config.addPrivacyModel(criterion);
         }
 
-        if (anonRule.getTClosenesses() != null) {
-            for (AnonymizationRule.TCloseness tClose : anonRule.getTClosenesses()) {
-                config.addPrivacyModel(new org.deidentifier.arx.criteria.EqualDistanceTCloseness(tClose.getColumn(), tClose.getT()));
-            }
+        // --- NEW SAFETY NET ---
+        // If the XML had NO privacy models at all, force k=1 so the engine doesn't crash.
+        // It will just drop IDENTIFYING columns and leave everything else alone!
+        if (config.getPrivacyModels().isEmpty()) {
+            config.addPrivacyModel(new KAnonymity(1));
         }
 
-        // 4. Run the Anonymizer
+        // 5. Run the Anonymizer
         ARXAnonymizer anonymizer = new ARXAnonymizer();
         ARXResult result = anonymizer.anonymize(data, config);
 
@@ -128,25 +177,30 @@ public class ArxService {
             throw new RuntimeException("ARX could not find a solution to anonymize the data with the given rules.");
         }
 
-        // 5. Map the safe data back into your Java Objects
+        // 6. Map the safe data back into your Java Objects
         DataHandle output = result.getOutput(false);
-        Iterator<String[]> iterator = output.iterator();
-        iterator.next(); // Skip the header row
+        int numRows = output.getNumRows();
 
-        for (Object item : itemList) {
-            String[] safeRow = iterator.next();
+        for (int rowIndex = 1; rowIndex < numRows; rowIndex++) {
+            Object item = itemList.get(rowIndex - 1);
+
             for (int i = 0; i < fields.length; i++) {
                 Field field = fields[i];
                 field.setAccessible(true);
-                
-                String safeValue = safeRow[i];
-                
-                // If ARX suppressed the value, it outputs "*". We map that to null for non-strings.
+
+                String uniqueColName = arxUniqueHeaders[i];
+                int arxColIndex = output.getColumnIndexOf(uniqueColName);
+
+                String safeValue = "*";
+
+                if (arxColIndex != -1) {
+                    safeValue = output.getValue(rowIndex, arxColIndex);
+                }
+
                 boolean isSuppressed = (safeValue == null || safeValue.equals("*") || safeValue.isEmpty());
 
-                // Safe parsing to prevent crashes, covering Strings, Integers, Dates, and Times
                 if (field.getType().equals(String.class)) {
-                    field.set(item, safeValue);
+                    field.set(item, isSuppressed ? "*" : safeValue);
                 } else if (field.getType().equals(Integer.class)) {
                     field.set(item, isSuppressed ? null : Integer.valueOf(safeValue));
                 } else if (field.getType().equals(java.time.LocalDate.class)) {

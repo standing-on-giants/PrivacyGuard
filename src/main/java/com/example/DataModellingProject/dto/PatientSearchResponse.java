@@ -10,24 +10,25 @@ import java.time.LocalDate;
 @Setter
 @PrivacyTable("Patient")
 public class PatientSearchResponse {
-    @PrivacyField(table = "Patient", column = "patient_Id")
+
+    @PrivacyField(column = "patient_Id")
     private Integer patientId;
-    
-    @PrivacyField(table = "Patient", column = "pt_Name") // Mapping to XML rule column
+
+    @PrivacyField(column = "FName")
     private String fName;
-    
-    @PrivacyField(table = "Patient", column = "LName")
+
+    @PrivacyField(column = "LName")
     private String lName;
-    
-    @PrivacyField(table = "Patient", column = "Gender")
+
+    @PrivacyField(column = "Gender")
     private String gender;
-    
-    @PrivacyField(table = "Patient", column = "birth_date") // Mapping to XML rule column
+
+    @PrivacyField(column = "Date_Of_Birth")
     private LocalDate dateOfBirth;
-    
-    @PrivacyField(table = "Patient", column = "contact_No")
+
+    @PrivacyField(column = "contact_No")
     private String contactNo;
-    
-    @PrivacyField(table = "Patient", column = "pt_Address") // Mapping to XML rule column
+
+    @PrivacyField(column = "pt_Address")
     private String ptAddress;
 }

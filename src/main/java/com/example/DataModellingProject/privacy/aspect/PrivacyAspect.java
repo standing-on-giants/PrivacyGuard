@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
-import java.util.List;
 
 @Aspect
 @Component
@@ -52,32 +51,31 @@ public class PrivacyAspect {
         if (result instanceof ResponseEntity) {
             bodyToMask = ((ResponseEntity<?>) result).getBody();
         } else {
-            bodyToMask = result; 
+            bodyToMask = result;
         }
 
         // 4. Apply the Privacy Rules to the payload
         if (bodyToMask != null) {
-            String tableName = getTableNameFromBody(bodyToMask);
+            String primaryTableName = getTableNameFromBody(bodyToMask);
 
-            if (tableName != null) {
-                TableRule rule = privacyService.getTableRule(role, tableName);
+            if (primaryTableName != null) {
 
-                if (rule != null) {
-                    if (bodyToMask instanceof Collection) {
-                        Collection<?> collectionBody = (Collection<?>) bodyToMask;
+                if (bodyToMask instanceof Collection) {
+                    Collection<?> collectionBody = (Collection<?>) bodyToMask;
 
-                        try {
-                            arxService.applyArxAnonymization(collectionBody, rule);
-                        } catch (Exception e) {
-                            System.err.println("ARX Anonymization failed or skipped: " + e.getMessage());
-                        }
-
-                        for (Object item : collectionBody) {
-                            maskObject(item, rule);
-                        }
-                    } else {
-                        maskObject(bodyToMask, rule);
+                    // Apply ARX using the cross-table resolver
+                    try {
+                        arxService.applyArxAnonymization(collectionBody, role, primaryTableName);
+                    } catch (Exception e) {
+                        System.err.println("ARX Anonymization failed or skipped: " + e.getMessage());
                     }
+
+                    // Mask items, passing the role so it can fetch cross-table rules
+                    for (Object item : collectionBody) {
+                        maskObject(item, role);
+                    }
+                } else {
+                    maskObject(bodyToMask, role);
                 }
             }
         }
@@ -109,39 +107,61 @@ public class PrivacyAspect {
 
     /**
      * Applies simple column masking based on the TableRule.
-     * UPDATED: Now respects the @PrivacyField annotation for correct mapping.
+     * Inherits table name from @PrivacyTable if @PrivacyField table is empty.
      */
-    private void maskObject(Object item, TableRule rule) {
-        if (item == null || rule.getMaskColumns().isEmpty()) return;
+    private void maskObject(Object item, String role) {
+        if (item == null) return;
 
-        List<String> columnsToMask = rule.getMaskColumns();
+        // 1. Get the default table name from the top of the class
+        String defaultTableName = item.getClass().getSimpleName();
+        com.example.DataModellingProject.privacy.annotation.PrivacyTable classAnnotation =
+                item.getClass().getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyTable.class);
+
+        if (classAnnotation != null) {
+            defaultTableName = classAnnotation.value();
+        }
+
         Field[] fields = item.getClass().getDeclaredFields();
 
         for (Field field : fields) {
-            // Default to the actual Java field name
-            String effectiveColumnName = field.getName();
-
-            // Check if the field is annotated with @PrivacyField
-            com.example.DataModellingProject.privacy.annotation.PrivacyField privacyField = 
+            // 2. Look for the @PrivacyField annotation
+            com.example.DataModellingProject.privacy.annotation.PrivacyField privacyField =
                     field.getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyField.class);
-            
-            // Override default if a specific DB column was provided
-            if (privacyField != null && !privacyField.column().isEmpty()) {
-                effectiveColumnName = privacyField.column();
+
+            // If the field doesn't have a privacy annotation, skip it entirely!
+            if (privacyField == null) {
+                continue;
             }
 
-            final String finalColNameToMatch = effectiveColumnName;
+            // 3. Determine which Table and Column to use
+            String targetTable = defaultTableName; // Start with the class default
+            String targetColumn = field.getName(); // Start with the Java variable name
 
-            if (columnsToMask.stream().anyMatch(c -> c.equalsIgnoreCase(finalColNameToMatch))) {
-                try {
-                    field.setAccessible(true);
-                    if (field.getType().equals(String.class)) {
-                        field.set(item, "***RESTRICTED***");
-                    } else {
-                        field.set(item, null);
+            if (!privacyField.table().isEmpty()) {
+                targetTable = privacyField.table(); // Override if a specific table was provided
+            }
+            if (!privacyField.column().isEmpty()) {
+                targetColumn = privacyField.column(); // Override if a specific column was provided
+            }
+
+            // 4. Fetch the specific rules for the target table
+            TableRule effectiveRule = privacyService.getTableRule(role, targetTable);
+
+            // 5. Apply the mask if the column is listed in the XML
+            if (effectiveRule != null && !effectiveRule.getMaskColumns().isEmpty()) {
+                final String finalColNameToMatch = targetColumn;
+
+                if (effectiveRule.getMaskColumns().stream().anyMatch(c -> c.equalsIgnoreCase(finalColNameToMatch))) {
+                    try {
+                        field.setAccessible(true);
+                        if (field.getType().equals(String.class)) {
+                            field.set(item, "***RESTRICTED***");
+                        } else {
+                            field.set(item, null);
+                        }
+                    } catch (IllegalAccessException e) {
+                        System.err.println("Could not mask field: " + field.getName());
                     }
-                } catch (IllegalAccessException e) {
-                    System.err.println("Could not mask field: " + field.getName());
                 }
             }
         }
