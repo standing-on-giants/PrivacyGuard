@@ -78,6 +78,11 @@ public class ArxService {
                     for (AnonymizationRule.LDiversity lDiv : specificAnon.getLDiversities()) {
                         if (lDiv.getColumn().equalsIgnoreCase(targetColumn)) {
                             dynamicColumnModels.add(new org.deidentifier.arx.criteria.DistinctLDiversity(uniqueArxHeader, lDiv.getL()));
+
+                            // --- THE FIX: AUTO-BOOSTER ---
+                            // If L-Diversity requires 'L' unique values, K-Anonymity MUST be at least 'L'.
+                            // We auto-boost the global K to ensure the math doesn't explode!
+                            globalMaxK = Math.max(globalMaxK, lDiv.getL());
                         }
                     }
                 }
@@ -162,9 +167,8 @@ public class ArxService {
             config.addPrivacyModel(criterion);
         }
 
-        // --- NEW SAFETY NET ---
+        // --- SAFETY NET ---
         // If the XML had NO privacy models at all, force k=1 so the engine doesn't crash.
-        // It will just drop IDENTIFYING columns and leave everything else alone!
         if (config.getPrivacyModels().isEmpty()) {
             config.addPrivacyModel(new KAnonymity(1));
         }
