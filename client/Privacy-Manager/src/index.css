@@ -1,0 +1,19 @@
+/* index.css */
+
+/* Set a basic foundation and ensure everything starts at the edge */
+html, body, #root {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; /* Good practice for layout */
+    /* Ensure body and html take up the full viewport height */
+    height: 100%;
+    width: 100%;
+    /* You can set a default font here if you like */
+    font-family: 'Urbanist', sans-serif;
+}
+
+/* Ensure the main React mount point covers the full height/width */
+#root {
+    height: 100%;
+    width: 100%;
+}
