@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" elementFormDefault="qualified" vc:minVersion="1.1">
     
     <!-- Root element -->
     <xs:element name="PrivacyRules">
@@ -111,6 +111,46 @@
             <xs:element name="Attribute" type="AttributeType" maxOccurs="unbounded"/>
             <xs:element name="PrivacyModels" type="PrivacyModelsType"/>
         </xs:sequence>
+
+        <!-- RULE 1: If SENSITIVE exists, QUASI_IDENTIFYING must exist -->
+        <xs:assert test="not(Attribute[@type='SENSITIVE']) or Attribute[@type='QUASI_IDENTIFYING']">
+            <xs:annotation>
+                <xs:documentation>
+                    If SENSITIVE attribute exists, QUASI_IDENTIFYING must also be present.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:assert>
+
+        <!-- RULE 3: If no privacy models, only IDENTIFYING allowed -->
+        <xs:assert test="
+            (PrivacyModels/KAnonymity or PrivacyModels/LDiversity or PrivacyModels/TCloseness) 
+            or 
+            (every $attr in Attribute satisfies $attr[@type='IDENTIFYING'])">
+            <xs:annotation>
+                <xs:documentation>
+                    If no privacy models are specified, only IDENTIFYING attributes are allowed.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:assert>
+
+        <!-- RULE 4: If K-Anonymity exists, QUASI_IDENTIFYING must exist -->
+        <xs:assert test="not(PrivacyModels/KAnonymity) or Attribute[@type='QUASI_IDENTIFYING']">
+            <xs:annotation>
+                <xs:documentation>
+                    If K-Anonymity is used, QUASI_IDENTIFYING attributes must be present.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:assert>
+        
+        <!-- RULE 5: If L-Diversity or T-Closeness exists, SENSITIVE must exist -->
+        <xs:assert test="not(PrivacyModels/LDiversity or PrivacyModels/TCloseness) or Attribute[@type='SENSITIVE']">
+            <xs:annotation>
+                <xs:documentation>
+                    If L-Diversity or T-Closeness is used, SENSITIVE attributes must be present.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:assert>
+
     </xs:complexType>
     
     <!-- Attribute (column classification) -->
@@ -135,6 +175,15 @@
             <xs:element name="LDiversity" type="LDiversityType" minOccurs="0" maxOccurs="unbounded"/>
             <xs:element name="TCloseness" type="TClosenessType" minOccurs="0" maxOccurs="unbounded"/>
         </xs:sequence>
+
+        <!-- RULE 2: L-Diversity or T-Closeness requires K-Anonymity -->
+        <xs:assert test="not(LDiversity or TCloseness) or KAnonymity">
+            <xs:annotation>
+                <xs:documentation>
+                    L-Diversity and T-Closeness require K-Anonymity to be present.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:assert>
     </xs:complexType>
     
     <!-- K-Anonymity Model -->
@@ -153,5 +202,4 @@
         <xs:attribute name="column" type="xs:string" use="required"/>
         <xs:attribute name="t" type="xs:decimal" use="required"/>
     </xs:complexType>
-    
 </xs:schema>
