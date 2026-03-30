@@ -159,22 +159,42 @@ const PatientSearch = () => {
             </Table.Thead>
             <Table.Tbody>
               {paginatedResults.length > 0 ? (
-                paginatedResults.map((patient) => (
-                  <Table.Tr key={patient.patientId}>
-                    <Table.Td fw={600}>{patient.patientId}</Table.Td>
-                    <Table.Td>{patient.fName} {patient.lName}</Table.Td>
+                paginatedResults.map((patient, index) => (
+                  // BULLETPROOF KEY: Guarantees absolute uniqueness even with duplicate backend data
+                  <Table.Tr key={`patient-row-${activePage}-${index}`}>
+                    
+                    <Table.Td fw={600}>
+                      {patient.patientId || <Badge color="red" variant="dot">Hidden</Badge>}
+                    </Table.Td>
+                    
+                    <Table.Td>
+                      {patient.fName || patient.lName 
+                        ? `${patient.fName || ''} ${patient.lName || ''}`.trim() 
+                        : <Text fs="italic" c="dimmed" size="sm">Redacted</Text>}
+                    </Table.Td>
+                    
                     <Table.Td>
                       <Badge color={patient.gender === 'M' ? 'blue' : patient.gender === 'F' ? 'pink' : 'gray'} variant="light">
-                        {patient.gender}
+                        {patient.gender || 'U'}
                       </Badge>
                     </Table.Td>
-                    <Table.Td>{patient.dateOfBirth}</Table.Td>
-                    <Table.Td>{patient.contactNo || <Text c="dimmed" size="xs">N/A</Text>}</Table.Td>
+                    
                     <Table.Td>
-                      <Text size="sm" lineClamp={1} title={patient.ptAddress}>
-                        {patient.ptAddress || <Text span c="dimmed" fs="italic">No address</Text>}
-                      </Text>
+                      {patient.dateOfBirth}
                     </Table.Td>
+                    
+                    <Table.Td>{patient.contactNo || <Text c="dimmed" size="xs">N/A</Text>}</Table.Td>
+                    
+                    <Table.Td>
+                      {patient.ptAddress ? (
+                        <Text size="sm" lineClamp={1} title={patient.ptAddress}>
+                          {patient.ptAddress}
+                        </Text>
+                      ) : (
+                        <Badge color="orange" variant="light" size="sm">K-Anonymized</Badge>
+                      )}
+                    </Table.Td>
+
                   </Table.Tr>
                 ))
               ) : (

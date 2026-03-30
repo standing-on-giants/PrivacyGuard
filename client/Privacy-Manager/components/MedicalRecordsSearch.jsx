@@ -155,8 +155,8 @@ const MedicalRecordsSearch = () => {
             </Table.Thead>
             <Table.Tbody>
               {paginatedResults.length > 0 ? (
-                paginatedResults.map((record) => (
-                  <Table.Tr key={record.recordId}>
+                paginatedResults.map((record, index) => (
+                  <Table.Tr key={`record-row-${activePage}-${index}`}>
                     <Table.Td fw={600}>{record.recordId}</Table.Td>
                     <Table.Td>{record.visitDate}</Table.Td>
                     <Table.Td>{record.patientFirstName} {record.patientLastName}</Table.Td>

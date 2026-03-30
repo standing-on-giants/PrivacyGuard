@@ -102,10 +102,6 @@
         </xs:sequence>
     </xs:complexType>
 
-
-    <!-- NEW SECTION: ARX Anonymization Support      -->
-
-    <!-- Anonymization -->
     <xs:complexType name="AnonymizationType">
         <xs:sequence>
             <xs:element name="Attribute" type="AttributeType" maxOccurs="unbounded"/>

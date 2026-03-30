@@ -185,8 +185,9 @@ public class ArxService {
         DataHandle output = result.getOutput(false);
         int numRows = output.getNumRows();
 
-        for (int rowIndex = 1; rowIndex < numRows; rowIndex++) {
-            Object item = itemList.get(rowIndex - 1);
+        // ✅ FIXED — start at rowIndex 0, direct mapping
+        for (int rowIndex = 0; rowIndex < numRows; rowIndex++) {
+            Object item = itemList.get(rowIndex); // row 0 → item 0, row 1 → item 1...
 
             for (int i = 0; i < fields.length; i++) {
                 Field field = fields[i];
@@ -196,7 +197,6 @@ public class ArxService {
                 int arxColIndex = output.getColumnIndexOf(uniqueColName);
 
                 String safeValue = "*";
-
                 if (arxColIndex != -1) {
                     safeValue = output.getValue(rowIndex, arxColIndex);
                 }
