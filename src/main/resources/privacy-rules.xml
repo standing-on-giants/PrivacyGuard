@@ -28,7 +28,6 @@
 
         <RuleSet role="nurse">
             <TableRule table="Patient">
-                <RowFilter ownership="nurse"/>
                 <Anonymization>
                     <Attribute column="FName" type="IDENTIFYING"/>
                     <Attribute column="LName" type="IDENTIFYING"/>
@@ -41,7 +40,6 @@
             </TableRule>
 
             <TableRule table="MedicalRecord">
-                <RowFilter ownership="nurse"/>
                 <Anonymization>
                     <Attribute column="visit_Date" type="QUASI_IDENTIFYING"/>
 
@@ -84,18 +82,6 @@
             <TableRule table="StaffShift">
                 <RowFilter ownership="nurse"/>
             </TableRule>
-
-            <TableRule table="Room">
-                <RowFilter ownership="nurse"/>
-            </TableRule>
-
-            <TableRule table="Ward">
-                <RowFilter ownership="nurse"/>
-            </TableRule>
-
-            <TableRule table="Bed">
-                <RowFilter ownership="nurse"/>
-            </TableRule>
         </RuleSet>
 
         <RuleSet role="helper">
@@ -132,18 +118,6 @@
             </TableRule>
 
             <TableRule table="StaffShift">
-                <RowFilter ownership="helper"/>
-            </TableRule>
-
-            <TableRule table="Room">
-                <RowFilter ownership="helper"/>
-            </TableRule>
-
-            <TableRule table="Ward">
-                <RowFilter ownership="helper"/>
-            </TableRule>
-
-            <TableRule table="Bed">
                 <RowFilter ownership="helper"/>
             </TableRule>
         </RuleSet>
