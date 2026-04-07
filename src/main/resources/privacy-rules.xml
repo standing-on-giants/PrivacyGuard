@@ -13,10 +13,6 @@
                 <RowFilter ownership="doctor"/>
             </TableRule>
 
-            <TableRule table="Patient">
-                <RowFilter ownership="doctor"/>
-            </TableRule>
-
             <TableRule table="Appointment">
                 <RowFilter ownership="doctor"/>
                 <Anonymization>

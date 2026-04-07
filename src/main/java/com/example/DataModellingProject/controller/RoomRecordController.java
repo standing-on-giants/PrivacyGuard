@@ -2,22 +2,30 @@ package com.example.DataModellingProject.controller;
 
 import com.example.DataModellingProject.dto.RoomRecordSearchRequest;
 import com.example.DataModellingProject.dto.RoomRecordSearchResponse;
+import com.example.DataModellingProject.model.RoomRecord;
 import com.example.DataModellingProject.service.RoomRecordService;
+import org.modelmapper.ModelMapper;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/room-records")
 public class RoomRecordController {
     private final RoomRecordService roomRecordService;
+    private final ModelMapper modelMapper;
 
-    public RoomRecordController(RoomRecordService roomRecordService) {
+    public RoomRecordController(RoomRecordService roomRecordService, ModelMapper modelMapper) {
         this.roomRecordService = roomRecordService;
+        this.modelMapper = modelMapper;
     }
 
     @PostMapping("/search")
     public List<RoomRecordSearchResponse> searchRoomRecords(@RequestBody RoomRecordSearchRequest request) {
-        return roomRecordService.searchRoomRecords(request);
+        List<RoomRecord> records = roomRecordService.searchRoomRecords(request);
+        return records.stream()
+                .map(record -> modelMapper.map(record, RoomRecordSearchResponse.class))
+                .collect(Collectors.toList());
     }
 }

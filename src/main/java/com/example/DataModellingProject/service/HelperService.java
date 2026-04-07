@@ -22,7 +22,22 @@ public class HelperService {
         this.modelMapper = modelMapper;
     }
 
-    public List<HelperSearchResponse> searchHelpers(HelperSearchRequest request) {
+//    public List<HelperSearchResponse> searchHelpers(HelperSearchRequest request) {
+//        Specification<Helper> spec = Specification.where((root, query, cb) -> cb.conjunction());
+//
+//        spec = spec.and(HelperSpecification.hasHelperIdIn(request.getHelperIds()))
+//                .and(HelperSpecification.hasFNameIn(request.getFNames()))
+//                .and(HelperSpecification.hasLNameIn(request.getLNames()))
+//                .and(HelperSpecification.hasGenderIn(request.getGenders()))
+//                .and(HelperSpecification.hasDepartmentNameIn(request.getDepartmentNames()));
+//
+//        List<Helper> helpers = helperRepository.findAll(spec);
+//        return helpers.stream()
+//                .map(helper -> modelMapper.map(helper, HelperSearchResponse.class))
+//                .collect(Collectors.toList());
+//    }
+
+    public List<Helper> searchHelpers(HelperSearchRequest request) {
         Specification<Helper> spec = Specification.where((root, query, cb) -> cb.conjunction());
 
         spec = spec.and(HelperSpecification.hasHelperIdIn(request.getHelperIds()))
@@ -31,9 +46,6 @@ public class HelperService {
                 .and(HelperSpecification.hasGenderIn(request.getGenders()))
                 .and(HelperSpecification.hasDepartmentNameIn(request.getDepartmentNames()));
 
-        List<Helper> helpers = helperRepository.findAll(spec);
-        return helpers.stream()
-                .map(helper -> modelMapper.map(helper, HelperSearchResponse.class))
-                .collect(Collectors.toList());
+        return helperRepository.findAll(spec);
     }
 }
