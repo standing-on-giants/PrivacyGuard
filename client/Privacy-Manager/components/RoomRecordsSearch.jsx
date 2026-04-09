@@ -1,43 +1,26 @@
 import React, { useState } from 'react';
 import {
-  Box,
-  Card,
-  Grid,
-  TextInput,
-  Button,
-  Table,
-  Text,
-  Badge,
-  Group,
-  Alert,
-  ScrollArea,
-  Title,
-  Pagination,
+  Box, Card, Grid, TextInput, Button, Table,
+  Text, Badge, Group, Alert, ScrollArea, Title, Pagination,
+  Switch, ThemeIcon,
 } from '@mantine/core';
+import { IconShieldCheck, IconShieldOff } from '@tabler/icons-react';
 
 const ITEMS_PER_PAGE = 10;
 
 const RoomRecordsSearch = () => {
-  // State for the request payload
   const [filters, setFilters] = useState({
-    roomNos: '',
-    patientIds: '',
-    nurseIds: '',
-    helperIds: '',
-    admissionDateStart: '',
-    admissionDateEnd: '',
-    dischargeDateStart: '',
-    dischargeDateEnd: ''
+    roomNos: '', patientIds: '', nurseIds: '', helperIds: '',
+    admissionDateStart: '', admissionDateEnd: '',
+    dischargeDateStart: '', dischargeDateEnd: ''
   });
 
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Pagination state
   const [activePage, setPage] = useState(1);
+  const [privacyEnabled, setPrivacyEnabled] = useState(true);
 
-  // Helper to convert comma-separated strings into integer arrays
   const parseIds = (idString) => {
     if (!idString) return null;
     const parsed = idString.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
@@ -47,9 +30,8 @@ const RoomRecordsSearch = () => {
   const handleSearch = async () => {
     setLoading(true);
     setError('');
-    setPage(1); // Reset to first page on new search
+    setPage(1);
 
-    // Build the exact RoomRecordSearchRequest DTO expected by Spring Boot
     const requestPayload = {
       roomNos: parseIds(filters.roomNos),
       patientIds: parseIds(filters.patientIds),
@@ -65,19 +47,18 @@ const RoomRecordsSearch = () => {
       const token = localStorage.getItem('jwtToken');
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
-      const response = await fetch(`${baseUrl}/room-records/search`, {
+      const endpoint = privacyEnabled
+        ? `${baseUrl}/room-records/search`
+        : `${baseUrl}/raw/room-records/search`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(requestPayload)
       });
 
       if (!response.ok) throw new Error(`Server returned ${response.status}`);
-      
-      const data = await response.json();
-      setResults(data);
+      setResults(await response.json());
     } catch (err) {
       setError('Failed to fetch room records. Please check your connection and permissions.');
       console.error(err);
@@ -86,71 +67,103 @@ const RoomRecordsSearch = () => {
     }
   };
 
-  const handleClear = () => {
-    setFilters({
-      roomNos: '', patientIds: '', nurseIds: '', helperIds: '',
-      admissionDateStart: '', admissionDateEnd: '',
-      dischargeDateStart: '', dischargeDateEnd: ''
-    });
-  };
+  const handleClear = () => setFilters({
+    roomNos: '', patientIds: '', nurseIds: '', helperIds: '',
+    admissionDateStart: '', admissionDateEnd: '',
+    dischargeDateStart: '', dischargeDateEnd: ''
+  });
 
-  // Calculate Paginated Data
   const totalPages = Math.ceil(results.length / ITEMS_PER_PAGE);
   const paginatedResults = results.slice((activePage - 1) * ITEMS_PER_PAGE, activePage * ITEMS_PER_PAGE);
 
   return (
     <Box>
-      {/* FILTER PANEL */}
-      <Card withBorder shadow="sm" radius="md" p="xl" mb="xl" style={{ background: 'rgba(30, 41, 59, 0.5)', borderColor: 'rgba(255,255,255,0.1)' }}>
-        <Title order={4} mb="lg" style={{ color: '#f8fafc' }}>Search Room Records</Title>
+      <Card withBorder shadow="sm" radius="md" p="xl" mb="xl"
+        style={{ background: 'rgba(30, 41, 59, 0.5)', borderColor: 'rgba(255,255,255,0.1)' }}>
+
+        <Group justify="space-between" mb="lg" align="center">
+          <Title order={4} style={{ color: '#f8fafc' }}>Search Room Records</Title>
+
+          <Group gap="sm" align="center"
+            style={{
+              background: privacyEnabled ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+              border: `1px solid ${privacyEnabled ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+              borderRadius: '8px', padding: '8px 14px', transition: 'all 0.3s ease',
+            }}>
+            <ThemeIcon variant="transparent" color={privacyEnabled ? 'red' : 'green'} size="sm">
+              {privacyEnabled ? <IconShieldCheck size={16} stroke={1.5} /> : <IconShieldOff size={16} stroke={1.5} />}
+            </ThemeIcon>
+            <Text size="sm" fw={500} style={{ color: privacyEnabled ? '#f87171' : '#4ade80' }}>
+              {privacyEnabled ? 'Privacy ON' : 'Privacy OFF'}
+            </Text>
+            <Switch
+              checked={!privacyEnabled}
+              onChange={(e) => { setPrivacyEnabled(!e.currentTarget.checked); setResults([]); setPage(1); }}
+              color="green" size="md"
+            />
+            <Text size="xs" c="dimmed">Raw API</Text>
+          </Group>
+        </Group>
+
         {error && <Alert color="red" mb="md">{error}</Alert>}
 
         <Grid>
-          {/* ID Filters */}
           <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <TextInput label="Room Numbers" placeholder="e.g. 101, 204" value={filters.roomNos} onChange={(e) => setFilters({ ...filters, roomNos: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
+            <TextInput label="Room Numbers" placeholder="e.g. 101, 204" value={filters.roomNos}
+              onChange={(e) => setFilters({ ...filters, roomNos: e.currentTarget.value })}
+              styles={{ label: { color: '#cbd5e1' } }} />
           </Grid.Col>
           <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <TextInput label="Patient IDs" placeholder="e.g. 10, 15" value={filters.patientIds} onChange={(e) => setFilters({ ...filters, patientIds: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
+            <TextInput label="Patient IDs" placeholder="e.g. 10, 15" value={filters.patientIds}
+              onChange={(e) => setFilters({ ...filters, patientIds: e.currentTarget.value })}
+              styles={{ label: { color: '#cbd5e1' } }} />
           </Grid.Col>
           <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <TextInput label="Nurse IDs" placeholder="e.g. 2, 5" value={filters.nurseIds} onChange={(e) => setFilters({ ...filters, nurseIds: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
+            <TextInput label="Nurse IDs" placeholder="e.g. 2, 5" value={filters.nurseIds}
+              onChange={(e) => setFilters({ ...filters, nurseIds: e.currentTarget.value })}
+              styles={{ label: { color: '#cbd5e1' } }} />
           </Grid.Col>
           <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-            <TextInput label="Helper IDs" placeholder="e.g. 1, 8" value={filters.helperIds} onChange={(e) => setFilters({ ...filters, helperIds: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
+            <TextInput label="Helper IDs" placeholder="e.g. 1, 8" value={filters.helperIds}
+              onChange={(e) => setFilters({ ...filters, helperIds: e.currentTarget.value })}
+              styles={{ label: { color: '#cbd5e1' } }} />
           </Grid.Col>
-
-          {/* Admission Dates */}
           <Grid.Col span={{ base: 12, md: 6 }}>
             <Group grow>
-              <TextInput type="date" label="Admission Start Date" value={filters.admissionDateStart} onChange={(e) => setFilters({ ...filters, admissionDateStart: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
-              <TextInput type="date" label="Admission End Date" value={filters.admissionDateEnd} onChange={(e) => setFilters({ ...filters, admissionDateEnd: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
+              <TextInput type="date" label="Admission Start Date" value={filters.admissionDateStart}
+                onChange={(e) => setFilters({ ...filters, admissionDateStart: e.currentTarget.value })}
+                styles={{ label: { color: '#cbd5e1' } }} />
+              <TextInput type="date" label="Admission End Date" value={filters.admissionDateEnd}
+                onChange={(e) => setFilters({ ...filters, admissionDateEnd: e.currentTarget.value })}
+                styles={{ label: { color: '#cbd5e1' } }} />
             </Group>
           </Grid.Col>
-
-          {/* Discharge Dates */}
           <Grid.Col span={{ base: 12, md: 6 }}>
             <Group grow>
-              <TextInput type="date" label="Discharge Start Date" value={filters.dischargeDateStart} onChange={(e) => setFilters({ ...filters, dischargeDateStart: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
-              <TextInput type="date" label="Discharge End Date" value={filters.dischargeDateEnd} onChange={(e) => setFilters({ ...filters, dischargeDateEnd: e.currentTarget.value })} styles={{ label: { color: '#cbd5e1' } }} />
+              <TextInput type="date" label="Discharge Start Date" value={filters.dischargeDateStart}
+                onChange={(e) => setFilters({ ...filters, dischargeDateStart: e.currentTarget.value })}
+                styles={{ label: { color: '#cbd5e1' } }} />
+              <TextInput type="date" label="Discharge End Date" value={filters.dischargeDateEnd}
+                onChange={(e) => setFilters({ ...filters, dischargeDateEnd: e.currentTarget.value })}
+                styles={{ label: { color: '#cbd5e1' } }} />
             </Group>
           </Grid.Col>
         </Grid>
 
         <Group justify="flex-end" mt="xl">
-          <Button onClick={handleClear} variant="subtle" color="gray">
-            Clear
-          </Button>
-          <Button onClick={handleSearch} loading={loading} color="cyan">
-            Search Records
-          </Button>
+          <Button onClick={handleClear} variant="subtle" color="gray">Clear</Button>
+          <Button onClick={handleSearch} loading={loading} color="cyan">Search Records</Button>
         </Group>
       </Card>
 
-      {/* RESULTS TABLE */}
-      <Card withBorder shadow="sm" radius="md" p="xl" style={{ background: 'rgba(30, 41, 59, 0.5)', borderColor: 'rgba(255,255,255,0.1)' }}>
+      <Card withBorder shadow="sm" radius="md" p="xl"
+        style={{ background: 'rgba(30, 41, 59, 0.5)', borderColor: 'rgba(255,255,255,0.1)' }}>
         <Group justify="space-between" mb="md">
           <Title order={4} style={{ color: '#f8fafc' }}>Results ({results.length})</Title>
+          <Badge color={privacyEnabled ? 'red' : 'green'} variant="light" size="lg"
+            leftSection={privacyEnabled ? <IconShieldCheck size={12} stroke={1.5} /> : <IconShieldOff size={12} stroke={1.5} />}>
+            {privacyEnabled ? '/api/room-records/search' : '/api/raw/room-records/search'}
+          </Badge>
         </Group>
 
         <ScrollArea>
@@ -170,16 +183,12 @@ const RoomRecordsSearch = () => {
                 paginatedResults.map((record) => (
                   <Table.Tr key={record.recordId}>
                     <Table.Td fw={600}>{record.recordId}</Table.Td>
-                    <Table.Td>
-                      <Badge color="violet" variant="light">Rm {record.roomNo}</Badge>
-                    </Table.Td>
+                    <Table.Td><Badge color="violet" variant="light">Rm {record.roomNo}</Badge></Table.Td>
                     <Table.Td>{record.admissionDate}</Table.Td>
                     <Table.Td>
-                      {record.dischargeDate ? (
-                        record.dischargeDate
-                      ) : (
-                        <Badge color="yellow" variant="dot">Occupied</Badge>
-                      )}
+                      {record.dischargeDate
+                        ? record.dischargeDate
+                        : <Badge color="yellow" variant="dot">Occupied</Badge>}
                     </Table.Td>
                     <Table.Td>{record.patientFirstName} {record.patientLastName}</Table.Td>
                     <Table.Td>{record.nurseFirstName} {record.nurseLastName}</Table.Td>
@@ -196,16 +205,9 @@ const RoomRecordsSearch = () => {
           </Table>
         </ScrollArea>
 
-        {/* PAGINATION CONTROLS */}
         {totalPages > 1 && (
           <Group justify="center" mt="xl">
-            <Pagination 
-              total={totalPages} 
-              value={activePage} 
-              onChange={setPage} 
-              color="cyan" 
-              withEdges 
-            />
+            <Pagination total={totalPages} value={activePage} onChange={setPage} color="cyan" withEdges />
           </Group>
         )}
       </Card>

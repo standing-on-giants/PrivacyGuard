@@ -36,7 +36,7 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         // 2. Added register to the permit list!
-                        .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register","/api/raw/**").permitAll()
                         .anyRequest().authenticated()
                 )
 

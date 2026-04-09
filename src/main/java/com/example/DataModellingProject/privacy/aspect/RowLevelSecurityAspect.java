@@ -14,6 +14,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Column;
 import jakarta.persistence.JoinColumn;
+import jakarta.servlet.http.HttpServletRequest;                          // NEW
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -21,6 +22,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;    // NEW
+import org.springframework.web.context.request.ServletRequestAttributes; // NEW
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -33,7 +36,6 @@ public class RowLevelSecurityAspect {
     private final EntityManager entityManager;
     private final PrivacyService privacyService;
 
-    // 1. Inject all Account Repositories
     private final DoctorAccountRepository doctorAccountRepository;
     private final NurseAccountRepository nurseAccountRepository;
     private final PatientAccountRepository patientAccountRepository;
@@ -61,6 +63,18 @@ public class RowLevelSecurityAspect {
 
         Object result = joinPoint.proceed();
 
+        // ─── RAW ENDPOINT BYPASS ──────────────────────────────────────────────
+        // If the request came through a /raw/ URL, skip ALL row-level filtering.
+        ServletRequestAttributes attrs =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs != null) {
+            HttpServletRequest request = attrs.getRequest();
+            if (request.getRequestURI().contains("/raw/")) {
+                return result;  // Return the full, unfiltered result immediately
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
             return result;
@@ -74,7 +88,6 @@ public class RowLevelSecurityAspect {
                 .replace("ROLE_", "")
                 .toLowerCase();
 
-        // 2. Convert Email to Database ID based on their specific Role
         String loggedInUserId = null;
 
         switch (role) {
@@ -102,14 +115,12 @@ public class RowLevelSecurityAspect {
                 System.out.println("RLS Warning: Unknown role detected -> " + role);
         }
 
-        // 3. Block access if the user doesn't actually exist in the database
         if (loggedInUserId == null) {
             System.err.println("RLS Blocked: Could not find DB ID for email: " + userEmail + " with role: " + role);
             if (result instanceof Collection) return java.util.Collections.emptyList();
             return null;
         }
 
-        // 4. Filter Lists
         if (result instanceof Collection) {
             Collection<?> collection = (Collection<?>) result;
             Iterator<?> iterator = collection.iterator();
@@ -117,19 +128,15 @@ public class RowLevelSecurityAspect {
             while (iterator.hasNext()) {
                 Object item = iterator.next();
 
-                // ONLY detach if it is actually a Hibernate database Entity
                 if (item != null && item.getClass().isAnnotationPresent(Entity.class)) {
                     entityManager.detach(item);
                 }
 
-                // If they don't own it, delete it from the list
                 if (!evaluateOwnership(item, role, loggedInUserId)) {
                     iterator.remove();
                 }
             }
-        }
-        // 5. Filter Single Objects
-        else if (result != null) {
+        } else if (result != null) {
             if (result.getClass().isAnnotationPresent(Entity.class)) {
                 entityManager.detach(result);
             }
@@ -173,47 +180,36 @@ public class RowLevelSecurityAspect {
         for (Field field : fields) {
             boolean isMatch = false;
 
-            // 1. Check native JPA @Column annotation
             Column columnOpt = field.getAnnotation(Column.class);
             if (columnOpt != null && columnOpt.name().equalsIgnoreCase(targetXmlColumn)) {
                 isMatch = true;
             }
 
-            // 2. Check native JPA @JoinColumn annotation (for foreign keys)
             JoinColumn joinColumnOpt = field.getAnnotation(JoinColumn.class);
             if (joinColumnOpt != null && joinColumnOpt.name().equalsIgnoreCase(targetXmlColumn)) {
                 isMatch = true;
             }
 
-            // 3. Fallback: Fuzzy match the variable name
             if (!isMatch && field.getName().equalsIgnoreCase(targetXmlColumn.replace("_", ""))) {
                 isMatch = true;
             }
 
-            // If we found the target column, extract its value!
             if (isMatch) {
                 try {
                     field.setAccessible(true);
                     Object value = field.get(entity);
 
                     if (value != null) {
-
                         Object finalIdToCompare = null;
 
-                        // SCENARIO A: The value is a nested Entity Object (like Doctor or Patient)
-                        // Use JPA's native utility to safely extract the ID, even if it is a Lazy Proxy!
                         try {
                             finalIdToCompare = entityManager.getEntityManagerFactory()
                                     .getPersistenceUnitUtil()
                                     .getIdentifier(value);
-                        }
-                        // SCENARIO B: It's just a raw String or Integer ID
-                        // If it's not an entity, getIdentifier throws an exception, so we fall back to the raw value.
-                        catch (IllegalArgumentException e) {
+                        } catch (IllegalArgumentException e) {
                             finalIdToCompare = value;
                         }
 
-                        // Finally, compare whatever ID we extracted to the logged in user!
                         if (finalIdToCompare != null && finalIdToCompare.toString().equals(loggedInUserId)) {
                             return true;
                         }
