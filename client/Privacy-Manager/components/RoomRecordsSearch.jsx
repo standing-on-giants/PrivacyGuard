@@ -76,6 +76,38 @@ const RoomRecordsSearch = () => {
   const totalPages = Math.ceil(results.length / ITEMS_PER_PAGE);
   const paginatedResults = results.slice((activePage - 1) * ITEMS_PER_PAGE, activePage * ITEMS_PER_PAGE);
 
+  // ── Privacy-aware cell renderers ──────────────────────────────────────────
+  // When privacy is ON, @PrivacyField-annotated fields come back as null.
+  // Each renderer shows the real value OR a styled fallback — never a blank gap.
+
+  const renderId = (value) =>
+    value != null
+      ? <Text fw={600}>{value}</Text>
+      : <Badge color="red" variant="dot" size="sm">Hidden</Badge>;
+
+  const renderRoomNo = (value) =>
+    value != null
+      ? <Badge color="violet" variant="light">Rm {value}</Badge>
+      : <Badge color="red" variant="dot" size="sm">Hidden</Badge>;
+
+  const renderDate = (value, fallback = null) =>
+    value != null
+      ? value
+      : fallback ?? <Text c="dimmed" size="xs">—</Text>;
+
+  const renderDischargeDate = (value) =>
+    value != null
+      ? value
+      : <Badge color="yellow" variant="dot">Occupied</Badge>;
+
+  const renderName = (first, last) => {
+    const name = [first, last].filter(Boolean).join(' ');
+    return name
+      ? name
+      : <Text fs="italic" c="dimmed" size="sm">Redacted</Text>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   return (
     <Box>
       <Card withBorder shadow="sm" radius="md" p="xl" mb="xl"
@@ -161,7 +193,9 @@ const RoomRecordsSearch = () => {
         <Group justify="space-between" mb="md">
           <Title order={4} style={{ color: '#f8fafc' }}>Results ({results.length})</Title>
           <Badge color={privacyEnabled ? 'red' : 'green'} variant="light" size="lg"
-            leftSection={privacyEnabled ? <IconShieldCheck size={12} stroke={1.5} /> : <IconShieldOff size={12} stroke={1.5} />}>
+            leftSection={privacyEnabled
+              ? <IconShieldCheck size={12} stroke={1.5} />
+              : <IconShieldOff size={12} stroke={1.5} />}>
             {privacyEnabled ? '/api/room-records/search' : '/api/raw/room-records/search'}
           </Badge>
         </Group>
@@ -180,18 +214,15 @@ const RoomRecordsSearch = () => {
             </Table.Thead>
             <Table.Tbody>
               {paginatedResults.length > 0 ? (
-                paginatedResults.map((record) => (
-                  <Table.Tr key={record.recordId}>
-                    <Table.Td fw={600}>{record.recordId}</Table.Td>
-                    <Table.Td><Badge color="violet" variant="light">Rm {record.roomNo}</Badge></Table.Td>
-                    <Table.Td>{record.admissionDate}</Table.Td>
-                    <Table.Td>
-                      {record.dischargeDate
-                        ? record.dischargeDate
-                        : <Badge color="yellow" variant="dot">Occupied</Badge>}
-                    </Table.Td>
-                    <Table.Td>{record.patientFirstName} {record.patientLastName}</Table.Td>
-                    <Table.Td>{record.nurseFirstName} {record.nurseLastName}</Table.Td>
+                // Key uses index fallback because recordId is null when privacy masks it
+                paginatedResults.map((record, index) => (
+                  <Table.Tr key={record.recordId ?? `room-row-${activePage}-${index}`}>
+                    <Table.Td>{renderId(record.recordId)}</Table.Td>
+                    <Table.Td>{renderRoomNo(record.roomNo)}</Table.Td>
+                    <Table.Td>{renderDate(record.admissionDate)}</Table.Td>
+                    <Table.Td>{renderDischargeDate(record.dischargeDate)}</Table.Td>
+                    <Table.Td>{renderName(record.patientFirstName, record.patientLastName)}</Table.Td>
+                    <Table.Td>{renderName(record.nurseFirstName, record.nurseLastName)}</Table.Td>
                   </Table.Tr>
                 ))
               ) : (

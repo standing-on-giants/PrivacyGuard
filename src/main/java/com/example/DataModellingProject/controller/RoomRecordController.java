@@ -4,7 +4,6 @@ import com.example.DataModellingProject.dto.RoomRecordSearchRequest;
 import com.example.DataModellingProject.dto.RoomRecordSearchResponse;
 import com.example.DataModellingProject.model.RoomRecord;
 import com.example.DataModellingProject.service.RoomRecordService;
-import org.modelmapper.ModelMapper;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,19 +12,43 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/room-records")
 public class RoomRecordController {
-    private final RoomRecordService roomRecordService;
-    private final ModelMapper modelMapper;
 
-    public RoomRecordController(RoomRecordService roomRecordService, ModelMapper modelMapper) {
+    private final RoomRecordService roomRecordService;
+
+    public RoomRecordController(RoomRecordService roomRecordService) {
         this.roomRecordService = roomRecordService;
-        this.modelMapper = modelMapper;
     }
 
     @PostMapping("/search")
-    public List<RoomRecordSearchResponse> searchRoomRecords(@RequestBody RoomRecordSearchRequest request) {
-        List<RoomRecord> records = roomRecordService.searchRoomRecords(request);
-        return records.stream()
-                .map(record -> modelMapper.map(record, RoomRecordSearchResponse.class))
+    public List<RoomRecordSearchResponse> searchRoomRecords(
+            @RequestBody RoomRecordSearchRequest request) {
+        return roomRecordService.searchRoomRecords(request)
+                .stream()
+                .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    // ── Manual mapper — replaces ModelMapper ─────────────────────────────────
+    private RoomRecordSearchResponse toResponse(RoomRecord record) {
+        RoomRecordSearchResponse dto = new RoomRecordSearchResponse();
+
+        // Key fix: entity field is admissionId, DTO field is recordId
+        dto.setRecordId(record.getAdmissionId());
+        dto.setAdmissionDate(record.getAdmissionDate());
+        dto.setDischargeDate(record.getDischargeDate());
+
+        if (record.getRoom() != null) {
+            dto.setRoomNo(record.getRoom().getRoomNo());
+        }
+        if (record.getPatient() != null) {
+            dto.setPatientFirstName(record.getPatient().getFName());
+            dto.setPatientLastName(record.getPatient().getLName());
+        }
+        if (record.getNurse() != null) {
+            dto.setNurseFirstName(record.getNurse().getFName());
+            dto.setNurseLastName(record.getNurse().getLName());
+        }
+
+        return dto;
     }
 }
