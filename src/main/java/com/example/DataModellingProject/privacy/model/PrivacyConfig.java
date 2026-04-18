@@ -6,6 +6,5 @@ import java.util.Map;
 
 @Data
 public class PrivacyConfig {
-    private Map<String, String> ownershipDefinitions = new HashMap<>();
     private Map<String, RuleSet> ruleSets = new HashMap<>();
 }

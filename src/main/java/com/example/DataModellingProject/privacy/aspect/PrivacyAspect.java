@@ -1,5 +1,6 @@
 package com.example.DataModellingProject.privacy.aspect;
 
+import com.example.DataModellingProject.context.UserContext;
 import com.example.DataModellingProject.privacy.model.TableRule;
 import com.example.DataModellingProject.privacy.service.ArxService;
 import com.example.DataModellingProject.privacy.service.PrivacyService;
@@ -7,9 +8,6 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
@@ -21,10 +19,12 @@ public class PrivacyAspect {
 
     private final PrivacyService privacyService;
     private final ArxService arxService;
+    private final UserContext userContext; // 1. Inject the new context
 
-    public PrivacyAspect(PrivacyService privacyService, ArxService arxService) {
+    public PrivacyAspect(PrivacyService privacyService, ArxService arxService, UserContext userContext) {
         this.privacyService = privacyService;
         this.arxService = arxService;
+        this.userContext = userContext;
     }
 
     @Around("execution(* com.example.DataModellingProject.controller.*.*(..))")
@@ -33,20 +33,15 @@ public class PrivacyAspect {
         // 1. Get the result from the controller
         Object result = joinPoint.proceed();
 
-        // 2. Check authentication
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+        // 2. Check authentication using the Context (No more SecurityContextHolder!)
+        if (!userContext.isAuthenticated()) {
             return result;
         }
 
-        String role = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .findFirst()
-                .orElse("")
-                .replace("ROLE_", "")
-                .toLowerCase();
+        // 3. Get the pre-processed role directly from the Context
+        String role = userContext.getRole();
 
-        // 3. Extract the actual payload
+        // 4. Extract the actual payload
         Object bodyToMask = null;
         if (result instanceof ResponseEntity) {
             bodyToMask = ((ResponseEntity<?>) result).getBody();
@@ -54,7 +49,7 @@ public class PrivacyAspect {
             bodyToMask = result;
         }
 
-        // 4. Apply the Privacy Rules to the payload
+        // 5. Apply the Privacy Rules to the payload
         if (bodyToMask != null) {
             String primaryTableName = getTableNameFromBody(bodyToMask);
 
@@ -80,7 +75,7 @@ public class PrivacyAspect {
             }
         }
 
-        // 5. Return the result
+        // 6. Return the result
         return result;
     }
 

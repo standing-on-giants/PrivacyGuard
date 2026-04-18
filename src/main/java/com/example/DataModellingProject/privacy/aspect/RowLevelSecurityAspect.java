@@ -1,29 +1,20 @@
 package com.example.DataModellingProject.privacy.aspect;
 
-import com.example.DataModellingProject.privacy.model.TableRule;
+import com.example.DataModellingProject.privacy.model.*;
 import com.example.DataModellingProject.privacy.service.PrivacyService;
-import com.example.DataModellingProject.privacy.annotation.PrivacyField;
 import com.example.DataModellingProject.privacy.annotation.PrivacyTable;
-import com.example.DataModellingProject.repository.DoctorAccountRepository;
-import com.example.DataModellingProject.repository.NurseAccountRepository;
-import com.example.DataModellingProject.repository.PatientAccountRepository;
-import com.example.DataModellingProject.repository.HelperAccountRepository;
-import com.example.DataModellingProject.repository.AdminAccountRepository;
+import com.example.DataModellingProject.context.UserContext;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Column;
 import jakarta.persistence.JoinColumn;
-import jakarta.servlet.http.HttpServletRequest;                          // NEW
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;    // NEW
-import org.springframework.web.context.request.ServletRequestAttributes; // NEW
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -35,27 +26,14 @@ public class RowLevelSecurityAspect {
 
     private final EntityManager entityManager;
     private final PrivacyService privacyService;
-
-    private final DoctorAccountRepository doctorAccountRepository;
-    private final NurseAccountRepository nurseAccountRepository;
-    private final PatientAccountRepository patientAccountRepository;
-    private final HelperAccountRepository helperAccountRepository;
-    private final AdminAccountRepository adminAccountRepository;
+    private final UserContext userContext;
 
     public RowLevelSecurityAspect(EntityManager entityManager,
                                   PrivacyService privacyService,
-                                  DoctorAccountRepository doctorAccountRepository,
-                                  NurseAccountRepository nurseAccountRepository,
-                                  PatientAccountRepository patientAccountRepository,
-                                  HelperAccountRepository helperAccountRepository,
-                                  AdminAccountRepository adminAccountRepository) {
+                                  UserContext userContext) {
         this.entityManager = entityManager;
         this.privacyService = privacyService;
-        this.doctorAccountRepository = doctorAccountRepository;
-        this.nurseAccountRepository = nurseAccountRepository;
-        this.patientAccountRepository = patientAccountRepository;
-        this.helperAccountRepository = helperAccountRepository;
-        this.adminAccountRepository = adminAccountRepository;
+        this.userContext = userContext;
     }
 
     @Around("execution(* com.example.DataModellingProject.service.*.*(..))")
@@ -63,60 +41,19 @@ public class RowLevelSecurityAspect {
 
         Object result = joinPoint.proceed();
 
-        // ─── RAW ENDPOINT BYPASS ──────────────────────────────────────────────
-        // If the request came through a /raw/ URL, skip ALL row-level filtering.
-        ServletRequestAttributes attrs =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attrs != null) {
-            HttpServletRequest request = attrs.getRequest();
-            if (request.getRequestURI().contains("/raw/")) {
-                return result;  // Return the full, unfiltered result immediately
-            }
-        }
-        // ─────────────────────────────────────────────────────────────────────
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+        // ─── RAW ENDPOINT BYPASS ───
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs != null && attrs.getRequest().getRequestURI().contains("/raw/")) {
             return result;
         }
 
-        String userEmail = auth.getName();
-        String role = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .findFirst()
-                .orElse("")
-                .replace("ROLE_", "")
-                .toLowerCase();
-
-        String loggedInUserId = null;
-
-        switch (role) {
-            case "doctor":
-                var doctorOpt = doctorAccountRepository.findByEmail(userEmail);
-                if (doctorOpt.isPresent()) loggedInUserId = String.valueOf(doctorOpt.get().getDoctorId());
-                break;
-            case "nurse":
-                var nurseOpt = nurseAccountRepository.findByEmail(userEmail);
-                if (nurseOpt.isPresent()) loggedInUserId = String.valueOf(nurseOpt.get().getNurseId());
-                break;
-            case "patient":
-                var patientOpt = patientAccountRepository.findByEmail(userEmail);
-                if (patientOpt.isPresent()) loggedInUserId = String.valueOf(patientOpt.get().getPatientId());
-                break;
-            case "helper":
-                var helperOpt = helperAccountRepository.findByEmail(userEmail);
-                if (helperOpt.isPresent()) loggedInUserId = String.valueOf(helperOpt.get().getHelperId());
-                break;
-            case "admin":
-                var adminOpt = adminAccountRepository.findByEmail(userEmail);
-                if (adminOpt.isPresent()) loggedInUserId = String.valueOf(adminOpt.get().getAdminId());
-                break;
-            default:
-                System.out.println("RLS Warning: Unknown role detected -> " + role);
+        if (!userContext.isAuthenticated()) {
+            return result;
         }
 
-        if (loggedInUserId == null) {
-            System.err.println("RLS Blocked: Could not find DB ID for email: " + userEmail + " with role: " + role);
+        String role = userContext.getRole();
+
+        if (userContext.getDatabaseId() == null) {
             if (result instanceof Collection) return java.util.Collections.emptyList();
             return null;
         }
@@ -127,12 +64,12 @@ public class RowLevelSecurityAspect {
 
             while (iterator.hasNext()) {
                 Object item = iterator.next();
-
                 if (item != null && item.getClass().isAnnotationPresent(Entity.class)) {
                     entityManager.detach(item);
                 }
 
-                if (!evaluateOwnership(item, role, loggedInUserId)) {
+                // Pass the entity to the new AST evaluator
+                if (!evaluateAST(item, role)) {
                     iterator.remove();
                 }
             }
@@ -141,7 +78,7 @@ public class RowLevelSecurityAspect {
                 entityManager.detach(result);
             }
 
-            if (!evaluateOwnership(result, role, loggedInUserId)) {
+            if (!evaluateAST(result, role)) {
                 return null;
             }
         }
@@ -149,7 +86,11 @@ public class RowLevelSecurityAspect {
         return result;
     }
 
-    private boolean evaluateOwnership(Object entity, String role, String loggedInUserId) {
+    // ────────────────────────────────────────────────────────────────────────
+    // AST EVALUATION ENGINE
+    // ────────────────────────────────────────────────────────────────────────
+
+    private boolean evaluateAST(Object entity, String role) {
         if (entity == null) return false;
 
         PrivacyTable tableAnnotation = entity.getClass().getAnnotation(PrivacyTable.class);
@@ -157,42 +98,131 @@ public class RowLevelSecurityAspect {
 
         TableRule rule = privacyService.getTableRule(role, tableName);
 
-        if (rule == null || rule.getRowFilter() == null) {
+        // If no rule or row filter exists, default allow
+        if (rule == null || rule.getRowFilter() == null || rule.getRowFilter().isEmpty()) {
             return true;
         }
 
-        String ownershipColumn = privacyService.getOwnershipAttribute(role);
+        RowFilter filter = rule.getRowFilter();
 
-        System.out.println("RLS DEBUG -> User Token ID: [" + loggedInUserId + "] | Searching Table: [" + tableName + "] for XML Column: [" + ownershipColumn + "]");
+        // Start the recursive evaluation
+        if (filter.getLogic() != null) {
+            return evaluateLogic(filter.getLogic(), entity);
+        } else if (filter.getCondition() != null) {
+            return evaluateCondition(filter.getCondition(), entity);
+        }
 
-        if (ownershipColumn == null) return false;
-
-        boolean isOwner = checkFieldValueMatches(entity, ownershipColumn, loggedInUserId);
-
-        System.out.println("RLS DEBUG -> Did row match? " + isOwner);
-
-        return isOwner;
+        return true;
     }
 
-    private boolean checkFieldValueMatches(Object entity, String targetXmlColumn, String loggedInUserId) {
+    private boolean evaluateLogic(Logic logic, Object entity) {
+        boolean isAnd = "AND".equalsIgnoreCase(logic.getOperator());
+        boolean result = isAnd; // AND starts true, OR starts false
+
+        // Evaluate all direct conditions in this block
+        for (Condition cond : logic.getConditions()) {
+            boolean condResult = evaluateCondition(cond, entity);
+            result = isAnd ? (result && condResult) : (result || condResult);
+        }
+
+        // Recursively evaluate nested logic blocks
+        for (Logic nestedLogic : logic.getLogics()) {
+            boolean logicResult = evaluateLogic(nestedLogic, entity);
+            result = isAnd ? (result && logicResult) : (result || logicResult);
+        }
+
+        return result;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private boolean evaluateCondition(Condition condition, Object entity) {
+        // Resolve exactly what the Left and Right sides of the equation are
+        Object left = resolveOperand(condition.getLeftOperand(), entity);
+        Object right = resolveOperand(condition.getRightOperand(), entity);
+
+        String op = condition.getOperator().toLowerCase();
+
+        System.out.println(left);
+        System.out.println(right);
+        System.out.println(op);
+
+        // 1. Handle Null checks first
+        if (left == null || right == null) {
+            if (op.equals("is") || op.equals("eq")) return left == right;
+            if (op.equals("is_not") || op.equals("neq")) return left != right;
+            return false;
+        }
+
+        // 2. Handle Equality
+        if (op.equals("eq")) return left.toString().equals(right.toString());
+        if (op.equals("neq")) return !left.toString().equals(right.toString());
+
+        // 3. Handle Mathematical / Date Comparisons (gt, lt, ge, le)
+        if (left instanceof Comparable && right instanceof Comparable) {
+            try {
+                int cmp = ((Comparable) left).compareTo(right);
+                switch (op) {
+                    case "gt": return cmp > 0;
+                    case "ge": return cmp >= 0;
+                    case "lt": return cmp < 0;
+                    case "le": return cmp <= 0;
+                }
+            } catch (ClassCastException e) {
+                // If types don't match (e.g. comparing String to LocalDate), fail safely
+                return false;
+            }
+        }
+
+        // 4. Handle Lists (in, not_in)
+        if (right instanceof ListValue) {
+            ListValue list = (ListValue) right;
+            boolean contains = list.getStringValues().contains(left.toString()) ||
+                    (left instanceof Integer && list.getIntegerValues().contains(left));
+
+            if (op.equals("in")) return contains;
+            if (op.equals("not_in")) return !contains;
+        }
+
+        return false;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // OPERAND RESOLVER (Extracting Data from Context or Entities)
+    // ────────────────────────────────────────────────────────────────────────
+
+    private Object resolveOperand(Operand operand, Object entity) {
+        if (operand == null) return null;
+
+        // 1. If it's a ContextAttribute, grab it from the UserContext
+        if (operand.getContextAttribute() != null) {
+            if ("databaseId".equals(operand.getContextAttribute())) {
+                return userContext.getDatabaseId();
+            }
+            return userContext.getAttribute(operand.getContextAttribute());
+        }
+
+        // 2. If it's a Column, extract it from the Database Entity using Reflection
+        if (operand.getColumn() != null) {
+            return extractFieldValue(entity, operand.getColumn());
+        }
+
+        // 3. Otherwise, it's a raw XML value (DateValue, StringValue, etc.)
+        return operand.getActualValue();
+    }
+
+    private Object extractFieldValue(Object entity, String targetColumn) {
         Field[] fields = entity.getClass().getDeclaredFields();
 
         for (Field field : fields) {
             boolean isMatch = false;
 
             Column columnOpt = field.getAnnotation(Column.class);
-            if (columnOpt != null && columnOpt.name().equalsIgnoreCase(targetXmlColumn)) {
-                isMatch = true;
-            }
+            if (columnOpt != null && columnOpt.name().equalsIgnoreCase(targetColumn)) isMatch = true;
 
             JoinColumn joinColumnOpt = field.getAnnotation(JoinColumn.class);
-            if (joinColumnOpt != null && joinColumnOpt.name().equalsIgnoreCase(targetXmlColumn)) {
-                isMatch = true;
-            }
+            if (joinColumnOpt != null && joinColumnOpt.name().equalsIgnoreCase(targetColumn)) isMatch = true;
 
-            if (!isMatch && field.getName().equalsIgnoreCase(targetXmlColumn.replace("_", ""))) {
-                isMatch = true;
-            }
+            if (!isMatch && field.getName().equalsIgnoreCase(targetColumn.replace("_", ""))) isMatch = true;
 
             if (isMatch) {
                 try {
@@ -200,26 +230,31 @@ public class RowLevelSecurityAspect {
                     Object value = field.get(entity);
 
                     if (value != null) {
-                        Object finalIdToCompare = null;
 
+                        // FIX: Do not rely on .getClass().isAnnotationPresent(Entity.class)
+                        // Hibernate Proxy classes lose the @Entity tag at runtime!
                         try {
-                            finalIdToCompare = entityManager.getEntityManagerFactory()
+                            // Let JPA figure out if it's an entity/proxy and grab the ID
+                            Object nestedId = entityManager.getEntityManagerFactory()
                                     .getPersistenceUnitUtil()
                                     .getIdentifier(value);
+
+                            // If JPA successfully extracted an ID, return that instead of the whole object!
+                            if (nestedId != null) {
+                                return nestedId;
+                            }
                         } catch (IllegalArgumentException e) {
-                            finalIdToCompare = value;
+                            // If it throws this, 'value' is just a normal String, Integer, LocalDate, etc.
+                            // We just catch it silently and fall through to return the raw value.
                         }
 
-                        if (finalIdToCompare != null && finalIdToCompare.toString().equals(loggedInUserId)) {
-                            return true;
-                        }
+                        return value;
                     }
                 } catch (IllegalAccessException e) {
-                    System.err.println("RowLevelSecurityAspect: Could not read ownership field: " + field.getName());
+                    System.err.println("Could not extract field value: " + field.getName());
                 }
             }
         }
-
-        return false;
+        return null;
     }
 }

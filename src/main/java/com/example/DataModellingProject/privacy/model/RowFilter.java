@@ -4,7 +4,12 @@ import lombok.Data;
 
 @Data
 public class RowFilter {
-    private String ownership;
+    // Only ONE of these will be populated by the XML parser
+    private Condition condition;
+    private Logic logic;
 
-    // Condition logic is intentionally ignored for now
+    // Quick helper to check if this filter is empty
+    public boolean isEmpty() {
+        return condition == null && logic == null;
+    }
 }

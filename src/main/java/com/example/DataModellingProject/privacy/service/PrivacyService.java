@@ -47,8 +47,4 @@ public class PrivacyService {
         return privacyConfig.getRuleSets().get(role).getTableRules().get(tableName);
     }
 
-    public String getOwnershipAttribute(String role) {
-        if (privacyConfig == null) return null;
-        return privacyConfig.getOwnershipDefinitions().get(role);
-    }
 }
