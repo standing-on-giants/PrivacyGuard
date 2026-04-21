@@ -11,7 +11,6 @@ import java.time.LocalDate;
 @PrivacyTable("RoomRecord")
 public class RoomRecordSearchResponse {
 
-    // FIX: RoomRecord table uses 'admission_Id', not 'record_Id'
     @PrivacyField(column = "admission_Id")
     private Integer recordId;
 

@@ -77,9 +77,6 @@ public class UserContextFilter extends OncePerRequestFilter {
                     adminRepo.findByEmail(email).ifPresent(a -> userContext.setDatabaseId(String.valueOf(a.getAdminId())));
                     break;
             }
-
-            // Example of adding a custom attribute for later use in XML rules:
-            // userContext.addAttribute("departmentId", fetchedDepartmentId);
         }
 
         // Continue the request chain

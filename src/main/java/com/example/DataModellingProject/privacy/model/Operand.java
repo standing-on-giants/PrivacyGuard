@@ -12,8 +12,7 @@ public class Operand {
     private Double doubleValue;
     private ListValue listValue;
 
-    // To handle the self-closing <Null/> tag.
-    // If <Null/> is present in XML, your parser usually instantiates this as an empty Object/String.
+
     private String nullValue;
 
     /**

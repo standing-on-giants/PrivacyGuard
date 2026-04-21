@@ -29,8 +29,6 @@ public class UserContext {
     @Getter
     private Instant requestTimestamp;
 
-    // A flexible map for anything else you want to add later!
-    // (e.g., departmentId, clearanceLevel, regionCode)
     private final Map<String, Object> customAttributes = new HashMap<>();
 
     public void addAttribute(String key, Object value) {

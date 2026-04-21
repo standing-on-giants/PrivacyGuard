@@ -41,7 +41,7 @@ public class RowLevelSecurityAspect {
 
         Object result = joinPoint.proceed();
 
-        // ─── RAW ENDPOINT BYPASS ───
+        // RAW ENDPOINT BYPASS
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs != null && attrs.getRequest().getRequestURI().contains("/raw/")) {
             return result;
@@ -85,10 +85,6 @@ public class RowLevelSecurityAspect {
 
         return result;
     }
-
-    // ────────────────────────────────────────────────────────────────────────
-    // AST EVALUATION ENGINE
-    // ────────────────────────────────────────────────────────────────────────
 
     private boolean evaluateAST(Object entity, String role) {
         if (entity == null) return false;
@@ -142,22 +138,18 @@ public class RowLevelSecurityAspect {
 
         String op = condition.getOperator().toLowerCase();
 
-        System.out.println(left);
-        System.out.println(right);
-        System.out.println(op);
-
-        // 1. Handle Null checks first
+        // Handle Null checks first
         if (left == null || right == null) {
             if (op.equals("is") || op.equals("eq")) return left == right;
             if (op.equals("is_not") || op.equals("neq")) return left != right;
             return false;
         }
 
-        // 2. Handle Equality
+        // Handle Equality
         if (op.equals("eq")) return left.toString().equals(right.toString());
         if (op.equals("neq")) return !left.toString().equals(right.toString());
 
-        // 3. Handle Mathematical / Date Comparisons (gt, lt, ge, le)
+        // Handle Mathematical / Date Comparisons (gt, lt, ge, le)
         if (left instanceof Comparable && right instanceof Comparable) {
             try {
                 int cmp = ((Comparable) left).compareTo(right);
@@ -173,7 +165,7 @@ public class RowLevelSecurityAspect {
             }
         }
 
-        // 4. Handle Lists (in, not_in)
+        // Handle Lists (in, not_in)
         if (right instanceof ListValue) {
             ListValue list = (ListValue) right;
             boolean contains = list.getStringValues().contains(left.toString()) ||
@@ -186,14 +178,11 @@ public class RowLevelSecurityAspect {
         return false;
     }
 
-    // ────────────────────────────────────────────────────────────────────────
-    // OPERAND RESOLVER (Extracting Data from Context or Entities)
-    // ────────────────────────────────────────────────────────────────────────
 
     private Object resolveOperand(Operand operand, Object entity) {
         if (operand == null) return null;
 
-        // 1. If it's a ContextAttribute, grab it from the UserContext
+        // If it's a ContextAttribute, grab it from the UserContext
         if (operand.getContextAttribute() != null) {
             if ("databaseId".equals(operand.getContextAttribute())) {
                 return userContext.getDatabaseId();
@@ -201,12 +190,12 @@ public class RowLevelSecurityAspect {
             return userContext.getAttribute(operand.getContextAttribute());
         }
 
-        // 2. If it's a Column, extract it from the Database Entity using Reflection
+        // If it's a Column, extract it from the Database Entity using Reflection
         if (operand.getColumn() != null) {
             return extractFieldValue(entity, operand.getColumn());
         }
 
-        // 3. Otherwise, it's a raw XML value (DateValue, StringValue, etc.)
+        // Otherwise, it's a raw XML value (DateValue, StringValue, etc.)
         return operand.getActualValue();
     }
 
@@ -230,9 +219,6 @@ public class RowLevelSecurityAspect {
                     Object value = field.get(entity);
 
                     if (value != null) {
-
-                        // FIX: Do not rely on .getClass().isAnnotationPresent(Entity.class)
-                        // Hibernate Proxy classes lose the @Entity tag at runtime!
                         try {
                             // Let JPA figure out if it's an entity/proxy and grab the ID
                             Object nestedId = entityManager.getEntityManagerFactory()

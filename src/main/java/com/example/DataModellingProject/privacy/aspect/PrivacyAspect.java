@@ -19,7 +19,7 @@ public class PrivacyAspect {
 
     private final PrivacyService privacyService;
     private final ArxService arxService;
-    private final UserContext userContext; // 1. Inject the new context
+    private final UserContext userContext;
 
     public PrivacyAspect(PrivacyService privacyService, ArxService arxService, UserContext userContext) {
         this.privacyService = privacyService;
@@ -30,18 +30,18 @@ public class PrivacyAspect {
     @Around("execution(* com.example.DataModellingProject.controller.*.*(..))")
     public Object applyPrivacyRules(ProceedingJoinPoint joinPoint) throws Throwable {
 
-        // 1. Get the result from the controller
+        // Get the result from the controller
         Object result = joinPoint.proceed();
 
-        // 2. Check authentication using the Context (No more SecurityContextHolder!)
+        // Check authentication using the Context (No more SecurityContextHolder!)
         if (!userContext.isAuthenticated()) {
             return result;
         }
 
-        // 3. Get the pre-processed role directly from the Context
+        // Get the pre-processed role directly from the Context
         String role = userContext.getRole();
 
-        // 4. Extract the actual payload
+        // Extract the actual payload
         Object bodyToMask = null;
         if (result instanceof ResponseEntity) {
             bodyToMask = ((ResponseEntity<?>) result).getBody();
@@ -49,7 +49,7 @@ public class PrivacyAspect {
             bodyToMask = result;
         }
 
-        // 5. Apply the Privacy Rules to the payload
+        // Apply the Privacy Rules to the payload
         if (bodyToMask != null) {
             String primaryTableName = getTableNameFromBody(bodyToMask);
 
@@ -75,7 +75,7 @@ public class PrivacyAspect {
             }
         }
 
-        // 6. Return the result
+        // Return the result
         return result;
     }
 
@@ -107,7 +107,7 @@ public class PrivacyAspect {
     private void maskObject(Object item, String role) {
         if (item == null) return;
 
-        // 1. Get the default table name from the top of the class
+        // Get the default table name from the top of the class
         String defaultTableName = item.getClass().getSimpleName();
         com.example.DataModellingProject.privacy.annotation.PrivacyTable classAnnotation =
                 item.getClass().getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyTable.class);
@@ -119,7 +119,7 @@ public class PrivacyAspect {
         Field[] fields = item.getClass().getDeclaredFields();
 
         for (Field field : fields) {
-            // 2. Look for the @PrivacyField annotation
+            // Look for the @PrivacyField annotation
             com.example.DataModellingProject.privacy.annotation.PrivacyField privacyField =
                     field.getAnnotation(com.example.DataModellingProject.privacy.annotation.PrivacyField.class);
 
@@ -128,7 +128,7 @@ public class PrivacyAspect {
                 continue;
             }
 
-            // 3. Determine which Table and Column to use
+            // Determine which Table and Column to use
             String targetTable = defaultTableName; // Start with the class default
             String targetColumn = field.getName(); // Start with the Java variable name
 

@@ -22,7 +22,6 @@ public class NurseSearchResponse {
     @PrivacyField(column = "Gender")
     private String gender;
 
-    // FIX: Matched the spelling mistake 'conatct_No' from your DDL exactly!
     @PrivacyField(column = "conatct_No")
     private String contactNo;
 

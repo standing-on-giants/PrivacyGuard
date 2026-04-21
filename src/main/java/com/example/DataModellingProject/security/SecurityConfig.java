@@ -29,13 +29,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. TELL SPRING SECURITY TO USE THE CORS CONFIGURATION BELOW
                 .cors(Customizer.withDefaults())
 
                 .csrf(AbstractHttpConfigurer::disable)
 
                 .authorizeHttpRequests(auth -> auth
-                        // 2. Added register to the permit list!
                         .requestMatchers("/api/auth/login", "/api/auth/register","/api/raw/**").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -47,7 +45,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // 3. THIS BEAN REPLACES YOUR OLD CorsConfig.java
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
