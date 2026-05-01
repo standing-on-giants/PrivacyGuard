@@ -22,6 +22,70 @@ public class ArxService {
         this.privacyService = privacyService;
     }
 
+    private AttributeType.Hierarchy buildDynamicHierarchy(java.util.Set<String> uniqueValues, Class<?> fieldType) {
+        String[][] hierarchyData = new String[uniqueValues.size()][4]; // 4 Levels of depth
+        int index = 0;
+
+        for (String val : uniqueValues) {
+            if (val == null || val.trim().isEmpty()) {
+                hierarchyData[index] = new String[]{"", "*", "*", "*"};
+                index++;
+                continue;
+            }
+
+            // Level 0 is always the exact raw value
+            hierarchyData[index][0] = val;
+
+            try {
+                if (fieldType.equals(Integer.class) || fieldType.equals(int.class) || fieldType.equals(Long.class)) {
+                    // NUMERIC STRATEGY: Bucket into ranges (e.g., 10s and 50s)
+                    long num = Long.parseLong(val);
+                    long lower10 = (num / 10) * 10;
+                    long lower50 = (num / 50) * 50;
+
+                    hierarchyData[index][1] = "[" + lower10 + "-" + (lower10 + 10) + ")";
+                    hierarchyData[index][2] = "[" + lower50 + "-" + (lower50 + 50) + ")";
+
+                } else if (fieldType.equals(java.time.LocalDate.class)) {
+                    // DATE STRATEGY: Generalize mathematically, but pad the string
+                    // to maintain strict ISO-8601 (YYYY-MM-DD) format for the parser.
+                    String[] parts = val.split("-");
+                    if (parts.length >= 3) {
+                        hierarchyData[index][1] = parts[0] + "-" + parts[1] + "-01";
+                        hierarchyData[index][2] = parts[0] + "-01-01";
+                    } else {
+                        hierarchyData[index][1] = "*";
+                        hierarchyData[index][2] = "*";
+                    }
+
+                } else {
+                    // STRING STRATEGY: Character masking from right to left (Redaction)
+                    // Good for Zip codes, Phone numbers, IDs.
+                    if (val.length() > 4) {
+                        hierarchyData[index][1] = val.substring(0, val.length() - 2) + "**";
+                        hierarchyData[index][2] = val.substring(0, val.length() - 4) + "****";
+                    } else if (val.length() > 2) {
+                        hierarchyData[index][1] = val.substring(0, val.length() - 1) + "*";
+                        hierarchyData[index][2] = val.substring(0, 1) + "**";
+                    } else {
+                        hierarchyData[index][1] = "*";
+                        hierarchyData[index][2] = "*";
+                    }
+                }
+            } catch (Exception e) {
+                // Fallback if parsing fails
+                hierarchyData[index][1] = "*";
+                hierarchyData[index][2] = "*";
+            }
+
+            // Level 3 is always total suppression
+            hierarchyData[index][3] = "*";
+            index++;
+        }
+
+        return AttributeType.Hierarchy.create(hierarchyData);
+    }
+
     public void applyArxAnonymization(Collection<?> items, String role, String primaryTableName) throws Exception {
         if (items == null || items.isEmpty()) return;
 
@@ -41,7 +105,7 @@ public class ArxService {
         String[] arxUniqueHeaders = new String[fields.length];
         String[] columnTypes = new String[fields.length];
 
-        // 1. Setup Headers, Types, and DYNAMIC PRIVACY MODELS
+        //  Setup Headers, Types, and DYNAMIC PRIVACY MODELS
         for (int i = 0; i < fields.length; i++) {
             Field field = fields[i];
 
@@ -66,28 +130,23 @@ public class ArxService {
                 AnonymizationRule specificAnon = specificTableRule.getAnonymization();
                 type = specificAnon.getAttributes().getOrDefault(targetColumn, "INSENSITIVE");
 
-                // --- DYNAMIC MATH AGGREGATOR ---
-
-                // A. Find the strictest K-Anonymity
+                // Find the strictest K-Anonymity
                 if (specificAnon.getKAnonymity() != null) {
                     globalMaxK = Math.max(globalMaxK, specificAnon.getKAnonymity());
                 }
 
-                // B. Attach L-Diversity for this specific cross-table column
+                // Attach L-Diversity for this specific cross-table column
                 if (specificAnon.getLDiversities() != null) {
                     for (AnonymizationRule.LDiversity lDiv : specificAnon.getLDiversities()) {
                         if (lDiv.getColumn().equalsIgnoreCase(targetColumn)) {
                             dynamicColumnModels.add(new org.deidentifier.arx.criteria.DistinctLDiversity(uniqueArxHeader, lDiv.getL()));
 
-                            // --- THE FIX: AUTO-BOOSTER ---
-                            // If L-Diversity requires 'L' unique values, K-Anonymity MUST be at least 'L'.
-                            // We auto-boost the global K to ensure the math doesn't explode!
                             globalMaxK = Math.max(globalMaxK, lDiv.getL());
                         }
                     }
                 }
 
-                // C. Attach T-Closeness for this specific cross-table column
+                // Attach T-Closeness for this specific cross-table column
                 if (specificAnon.getTClosenesses() != null) {
                     for (AnonymizationRule.TCloseness tClose : specificAnon.getTClosenesses()) {
                         if (tClose.getColumn().equalsIgnoreCase(targetColumn)) {
@@ -101,7 +160,7 @@ public class ArxService {
 
         data.add(arxUniqueHeaders);
 
-        // 2. Add Rows
+        // Add Rows
         for (Object item : itemList) {
             String[] row = new String[fields.length];
             for (int i = 0; i < fields.length; i++) {
@@ -112,7 +171,7 @@ public class ArxService {
             data.add(row);
         }
 
-        // 3. Configure Attribute Types
+        // Configure Attribute Types
         for (int i = 0; i < arxUniqueHeaders.length; i++) {
             String uniqueColName = arxUniqueHeaders[i];
             String type = columnTypes[i];
@@ -127,6 +186,8 @@ public class ArxService {
                 case "QUASI_IDENTIFYING":
                     java.util.Set<String> uniqueValues = new java.util.HashSet<>();
                     Field targetField = fields[i];
+
+                    // Extract values
                     for (Object item : itemList) {
                         try {
                             targetField.setAccessible(true);
@@ -137,23 +198,16 @@ public class ArxService {
                         }
                     }
 
-                    String[][] hierarchyData = new String[uniqueValues.size()][2];
-                    int index = 0;
-                    for (String val : uniqueValues) {
-                        hierarchyData[index][0] = val;
-                        hierarchyData[index][1] = "*";
-                        index++;
-                    }
-
-                    AttributeType.Hierarchy explicitHierarchy = AttributeType.Hierarchy.create(hierarchyData);
-                    data.getDefinition().setAttributeType(uniqueColName, explicitHierarchy);
+                    // Use the Smart Factory, passing the values AND the Field Type
+                    AttributeType.Hierarchy dynamicHierarchy = buildDynamicHierarchy(uniqueValues, targetField.getType());
+                    data.getDefinition().setAttributeType(uniqueColName, dynamicHierarchy);
                     break;
                 default:
                     data.getDefinition().setAttributeType(uniqueColName, AttributeType.INSENSITIVE_ATTRIBUTE);
             }
         }
 
-        // 4. Configure Privacy Models (Using Aggregated Math)
+        // Configure Privacy Models (Using Aggregated Math)
         ARXConfiguration config = ARXConfiguration.create();
         config.setSuppressionLimit(1d);
 
@@ -167,13 +221,12 @@ public class ArxService {
             config.addPrivacyModel(criterion);
         }
 
-        // --- SAFETY NET ---
         // If the XML had NO privacy models at all, force k=1 so the engine doesn't crash.
         if (config.getPrivacyModels().isEmpty()) {
             config.addPrivacyModel(new KAnonymity(1));
         }
 
-        // 5. Run the Anonymizer
+        // Run the Anonymizer
         ARXAnonymizer anonymizer = new ARXAnonymizer();
         ARXResult result = anonymizer.anonymize(data, config);
 
@@ -181,11 +234,10 @@ public class ArxService {
             throw new RuntimeException("ARX could not find a solution to anonymize the data with the given rules.");
         }
 
-        // 6. Map the safe data back into your Java Objects
+        // Map the safe data back into your Java Objects
         DataHandle output = result.getOutput(false);
         int numRows = output.getNumRows();
 
-        // ✅ FIXED — start at rowIndex 0, direct mapping
         for (int rowIndex = 0; rowIndex < numRows; rowIndex++) {
             Object item = itemList.get(rowIndex); // row 0 → item 0, row 1 → item 1...
 
