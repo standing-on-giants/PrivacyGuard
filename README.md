@@ -31,7 +31,7 @@ Open your terminal in the project root folder and run:
 ```bash
 mvn spring-boot:run
 ```
-The application will start on port 8080.
+The application will start on the port 8080.
 
 ## Project Structure
 ```
