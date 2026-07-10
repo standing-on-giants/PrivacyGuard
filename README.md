@@ -1,4 +1,4 @@
-# Data-Modelling-Project
+# PrivacyGuard: Role-Based Privacy Filter for Relational Databases
 
 ## Prerequisites
 - Java Development Kit (JDK) 17 or higher
